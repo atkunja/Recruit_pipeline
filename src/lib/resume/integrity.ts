@@ -40,6 +40,39 @@ const COMMON_WORDS = new Set([
   "production", "internal", "external", "end", "front", "back", "full", "stack",
 ]);
 
+/**
+ * Is the document substantial enough to be a resume at all?
+ *
+ * Deliberately separate from `checkIntegrity`, which asks a different question:
+ * "does this contain anything unverified?" An empty document contains no
+ * fabrication, so the fabrication checks pass it — and it would be marked ready
+ * to send. Both questions have to be asked.
+ *
+ * Learned the hard way: a tailoring call returned zero selections, produced a
+ * resume with no experience at all, and it sailed through as `integrityOk`.
+ */
+export function checkCompleteness(document: ResumeDocument): IntegrityReport {
+  const issues: string[] = [];
+
+  const entries = document.sections.flatMap((section) => section.entries);
+  const bulletCount = entries.reduce(
+    (total, entry) => total + entry.bullets.length,
+    0,
+  );
+
+  if (entries.length === 0) {
+    issues.push(
+      "The resume has no experience entries at all — nothing was selected from the bullet bank.",
+    );
+  } else if (bulletCount < 3) {
+    issues.push(
+      `The resume has only ${bulletCount} bullet(s), which is too thin to send.`,
+    );
+  }
+
+  return { ok: issues.length === 0, issues };
+}
+
 export function checkIntegrity(input: IntegrityInput): IntegrityReport {
   const issues: string[] = [];
 

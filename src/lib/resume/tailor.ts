@@ -3,7 +3,7 @@ import { z } from "zod";
 import { complete, modelFor } from "../ai/client";
 import type { ProfileContext } from "../profile/context";
 import { assembleResume, type EntrySelection } from "./assemble";
-import { checkIntegrity } from "./integrity";
+import { checkCompleteness, checkIntegrity } from "./integrity";
 import type {
   IntegrityReport,
   ResumeChange,
@@ -138,17 +138,57 @@ async function requestTailoring(
     schema: TailorResponseSchema,
     schemaName: "TailoredResume",
     temperature: previousIssues === null ? 0.35 : 0.1,
-    maxOutputTokens: 2600,
+    maxOutputTokens: 4500,
     jobId: input.job.id,
   });
 
-  const selections: EntrySelection[] = response.selections.map((selection) => ({
+  let selections: EntrySelection[] = response.selections.map((selection) => ({
     experienceId: selection.experienceId,
     bullets: selection.bullets.map((bullet) => ({
       bulletId: bullet.bulletId,
       text: bullet.text,
     })),
   }));
+
+  // Guard against a well-formed but useless response.
+  //
+  // A model that returns no selections (or ids that match nothing) produces an
+  // empty document, which passes every fabrication check and would otherwise be
+  // marked ready to send. Falling back to the master ordering gives a correct,
+  // if untailored, resume rather than a blank one.
+  const validExperienceIds = new Set(input.context.experiences.map((e) => e.id));
+  const validBulletIds = new Set(input.context.bullets.map((b) => b.id));
+
+  selections = selections
+    .filter((selection) => validExperienceIds.has(selection.experienceId))
+    .map((selection) => ({
+      ...selection,
+      bullets: selection.bullets.filter((bullet) =>
+        validBulletIds.has(bullet.bulletId),
+      ),
+    }))
+    .filter((selection) => selection.bullets.length > 0);
+
+  const usableBullets = selections.reduce(
+    (total, selection) => total + selection.bullets.length,
+    0,
+  );
+
+  if (usableBullets < 3) {
+    console.warn(
+      `[tailor] job ${input.job.id}: model returned ${response.selections.length} ` +
+        `selection(s) with ${usableBullets} usable bullet(s); falling back to the master resume. ` +
+        `Model sent bulletIds=${JSON.stringify(
+          response.selections.flatMap((s) => s.bullets.map((b) => b.bulletId)),
+        )}.`,
+    );
+    selections = input.context.experiences.map((experience) => ({
+      experienceId: experience.id,
+      bullets: input.context.bullets
+        .filter((bullet) => bullet.experienceId === experience.id)
+        .map((bullet) => ({ bulletId: bullet.id })),
+    }));
+  }
 
   const built = buildFromSelections(input.context, selections, response.skillOrder);
 
@@ -193,12 +233,19 @@ function buildFromSelections(
   const document = assembleResume(context, { selections, skillOrder });
   const master = assembleResume(context);
 
-  const integrity = checkIntegrity({
+  // Both questions must be asked: is anything invented, and is there anything
+  // here at all. An empty document passes the first and fails the second.
+  const fabrication = checkIntegrity({
     document,
     bullets: context.bullets,
     experiences: context.experiences,
     skills: context.skills,
   });
+  const completeness = checkCompleteness(document);
+  const integrity = {
+    ok: fabrication.ok && completeness.ok,
+    issues: [...completeness.issues, ...fabrication.issues],
+  };
 
   const bulletIds: number[] = [];
   for (const section of document.sections) {
