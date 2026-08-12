@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"test/**/*.test.ts\"",
+    "test": "node --import ./test/register.mjs --test \"test/**/*.test.ts\"",
     "db:migrate": "node scripts/migrate.ts",
     "db:seed": "node scripts/seed.ts",
     "discover": "node scripts/discover.ts",
