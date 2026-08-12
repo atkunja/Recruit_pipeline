@@ -252,17 +252,66 @@ your authenticated session against that site's terms. Jobs you find there can
 be pasted into **Add a job**, which reads Greenhouse/Lever/Ashby links directly
 from their APIs.
 
+## Deploying to Vercel
+
+```bash
+npx vercel link
+npx vercel env add DATABASE_URL production        # session pooler, port 5432
+npx vercel env add DIRECT_DATABASE_URL production
+npx vercel env add APP_PASSWORD production
+npx vercel env add AUTH_SECRET production
+npx vercel env add OPENAI_API_KEY production
+npx vercel env add CRON_SECRET production
+npx vercel env add NEXT_PUBLIC_APP_URL production # https://<app>.vercel.app
+npx vercel --prod
+```
+
+Then, if you want Gmail on the deployment, add
+`https://<app>.vercel.app/api/gmail/callback` to the OAuth client's authorized
+redirect URIs and set `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` /
+`GOOGLE_REDIRECT_URI`.
+
+`GET /api/health` returns 503 when the database is unreachable and 200
+otherwise, with source and job counts — point an uptime monitor at it.
+
+### Operational notes worth knowing
+
+These were all learned by breaking them:
+
+- **Use the session pooler (5432), not the transaction pooler (6543).**
+  Transaction mode multiplexes clients onto shared backends, so `SET` state
+  leaks between them and a long-lived client eventually queues queries forever
+  with no error surfaced. `npm run db:check` warns if the port looks wrong.
+- **Postgres `bigint` arrives as a string** unless told otherwise. `src/lib/db.ts`
+  parses int8 as a number because every id type declares `number`; without it,
+  id comparisons silently fail and produce empty results rather than errors.
+- **Discovery is time-budgeted, not count-budgeted.** Board polling gets 50% of
+  the window, enrichment 20%, scoring 30%, with unused time rolling forward.
+  Before that the polling phase consumed the whole run and nothing was scored.
+- **The prefilter should only reject what is certainly wrong.** Scoring costs
+  about a fifth of a cent; a job wrongly filtered out is invisible forever.
+
 ## Commands
 
 ```bash
+npm run setup        # interactive .env.local setup
+npm run db:check     # verify both connection strings, with specific fixes
+npm run db:migrate   # apply migrations
+npm run db:seed      # load db/profile.json
+npm run db:refilter  # re-run the prefilter over stored jobs after a rule change
+npm run db:redupe    # recompute dedupe keys and relink duplicates
 npm run dev          # local dev server
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
 npm test             # node:test suite
-npm run db:migrate   # apply migrations
-npm run db:seed      # load db/profile.json
+npm run apply -- <id># Playwright application assistant (local only)
 ```
+
+The three `db:` maintenance commands exist because normalization, prefiltering
+and dedupe are all pure functions of stored data. When their rules improve, the
+existing corpus should be re-evaluated rather than left stale — the first
+`db:refilter` run recovered 79 jobs that a substring bug had discarded.
 
 ## Layout
 
