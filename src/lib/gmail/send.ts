@@ -41,10 +41,39 @@ export async function sendEmail(input: SendMessageInput): Promise<SentMessage> {
   return { messageId: response.id, threadId: response.threadId };
 }
 
+export class InvalidRecipientError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidRecipientError";
+  }
+}
+
+/**
+ * Validate the recipient.
+ *
+ * Flattening a CR/LF out of an address would stop header injection but leave a
+ * mangled recipient like "real@x.com Bcc: attacker@y.com" — silently wrong.
+ * A newline in an address is never legitimate, so this refuses outright.
+ */
+function assertValidRecipient(address: string): string {
+  if (/[\r\n]/.test(address)) {
+    throw new InvalidRecipientError(
+      "Recipient address contains a line break. Refusing to send.",
+    );
+  }
+  const trimmed = address.trim();
+  if (!/^[^\s@<>,;]+@[^\s@<>,;]+\.[^\s@<>,;]+$/.test(trimmed)) {
+    throw new InvalidRecipientError(
+      `"${trimmed}" is not a valid email address. Refusing to send.`,
+    );
+  }
+  return trimmed;
+}
+
 /** Assemble the RFC 2822 message. */
 export function buildMime(input: SendMessageInput): string {
   const headers: string[] = [
-    `To: ${sanitizeHeader(input.to)}`,
+    `To: ${assertValidRecipient(input.to)}`,
     `Subject: ${encodeSubject(input.subject)}`,
     "MIME-Version: 1.0",
     'Content-Type: text/plain; charset="UTF-8"',
@@ -71,7 +100,6 @@ function sanitizeHeader(value: string): string {
 /** RFC 2047 encode a subject when it isn't plain ASCII. */
 function encodeSubject(subject: string): string {
   const clean = sanitizeHeader(subject);
-  // eslint-disable-next-line no-control-regex
   if (/^[\x20-\x7e]*$/.test(clean)) return clean;
   return `=?UTF-8?B?${Buffer.from(clean, "utf8").toString("base64")}?=`;
 }
