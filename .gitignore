@@ -43,3 +43,6 @@ yarn-error.log*
 /test-results/
 /.playwright/
 /local-artifacts/
+
+# personal profile data — never commit
+db/profile.json
