@@ -207,3 +207,31 @@ describe("graduationWindow", () => {
     assert.equal(graduationWindow("We hire great people."), null);
   });
 });
+
+describe("prefilter — regression: over-strict title filter", () => {
+  const passes = (title: string) => {
+    const result = prefilter(job({ title }), PROFILE);
+    assert.equal(result.verdict, "pass", `${title} -> ${result.reasons.join(", ")}`);
+  };
+
+  test("quant roles at trading firms are targets, not noise", () => {
+    // All four were rejected as "not a technical software role" because the
+    // list matched "quantitative trading" but not "trader".
+    passes("Quantitative Trader Intern");
+    passes("Quant Trading Intern");
+    passes("Quantitative Researcher Intern");
+    passes("Quantitative Intern - Summer 2027");
+  });
+
+  test("AI and ML research roles pass to the scorer", () => {
+    passes("AI Research Scientist Intern");
+    passes("Machine Learning Intern");
+    passes("Data Science Intern");
+  });
+
+  test("genuinely non-technical roles are still rejected", () => {
+    for (const title of ["Marketing Intern", "Human Resources Intern", "Legal Intern"]) {
+      assert.equal(prefilter(job({ title }), PROFILE).verdict, "reject", title);
+    }
+  });
+});

@@ -217,3 +217,49 @@ describe("extractSections", () => {
     assert.equal(preferred, null);
   });
 });
+
+describe("isUnitedStates — regression: substring false positives", () => {
+  test("Milwaukee is not the United Kingdom", () => {
+    // "Mil-w-a-UK-ee" matched the "uk" marker under substring matching, and
+    // every Milwaukee posting was silently discarded before scoring.
+    assert.equal(isUnitedStates(["Milwaukee, WI"]), true);
+    assert.equal(isUnitedStates(["Milwaukee"]), true);
+  });
+
+  test("Indianapolis is not India", () => {
+    assert.equal(isUnitedStates(["Indianapolis, IN"]), true);
+    assert.equal(isUnitedStates(["Indianapolis"]), true);
+  });
+
+  test("still excludes the actual foreign places", () => {
+    assert.equal(isUnitedStates(["London, UK"]), false);
+    assert.equal(isUnitedStates(["Bengaluru, India"]), false);
+    assert.equal(isUnitedStates(["Hong Kong, Hong Kong"]), false);
+    assert.equal(isUnitedStates(["Amsterdam, Netherlands"]), false);
+  });
+});
+
+describe("isUnitedStates — accepts real-world US formats", () => {
+  test("full state names", () => {
+    assert.equal(isUnitedStates(["Chicago, Illinois"]), true);
+    assert.equal(isUnitedStates(["Austin, Texas"]), true);
+  });
+
+  test("a bare state", () => {
+    assert.equal(isUnitedStates(["Texas"]), true);
+  });
+
+  test("city shorthands with no state", () => {
+    for (const location of ["NYC", "SF", "New York", "Bay Area", "Seattle", "Boston"]) {
+      assert.equal(isUnitedStates([location]), true, location);
+    }
+  });
+
+  test("multi-city strings", () => {
+    assert.equal(isUnitedStates(parseLocations("Chicago; New York")), true);
+  });
+
+  test("a US city alongside a foreign one still counts", () => {
+    assert.equal(isUnitedStates(["London, UK", "Chicago, IL"]), true);
+  });
+});
