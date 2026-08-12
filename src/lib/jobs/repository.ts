@@ -104,7 +104,6 @@ export async function listDiscoverJobs(
       c.preference    as company_preference,
       s.total         as score,
       s.summary       as score_summary,
-      s.components    as components,
       coalesce(s.strongest_skills, '{}')      as strongest_skills,
       coalesce(s.missing_requirements, '{}')  as missing_requirements,
       a.id            as application_id,
@@ -115,7 +114,11 @@ export async function listDiscoverJobs(
     from jobs j
     join companies c on c.id = j.company_id
     left join lateral (
-      select * from job_scores js
+      -- Only the columns the feed renders. Selecting every column pulled the
+      -- full components jsonb for all 130 rows, which dominated a 707KB
+      -- response; the breakdown is only shown on the job detail page.
+      select js.total, js.summary, js.strongest_skills, js.missing_requirements
+      from job_scores js
       where js.job_id = j.id
       order by js.created_at desc
       limit 1

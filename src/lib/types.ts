@@ -458,7 +458,6 @@ export interface JobListItem {
   companyPreference: number;
   score: number | null;
   scoreSummary: string | null;
-  components: ScoreComponents | null;
   strongestSkills: string[];
   missingRequirements: string[];
   applicationId: number | null;
