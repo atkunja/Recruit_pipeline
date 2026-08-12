@@ -58,16 +58,18 @@ function create(): Sql {
       },
     },
 
-    // ONE connection per client instance, deliberately.
+    // Pool size.
     //
-    // Supabase's transaction pooler is itself the connection pool, so a second
-    // pool in front of it buys nothing and costs slots. It also bounds the
-    // damage when several client instances exist at once: Next's dev server
-    // evaluates this module separately per module graph, and each evaluation
-    // gets its own `globalThis`, so the cache below cannot dedupe across them.
-    // At max:3 those leaked pools exhausted Supabase's client limit and every
-    // query — including from unrelated processes — hung indefinitely.
-    max: 1,
+    // This was briefly 1, to contain a connection leak caused by a lazy Proxy
+    // rebuilding clients (since removed). One connection serializes everything:
+    // ingesting 366 postings at ~5 queries each through a single connection was
+    // the reason a discovery run spent its entire window fetching boards and
+    // never reached scoring.
+    //
+    // Session-mode pooling gives each connection a dedicated backend, and
+    // Supabase allows far more than this, so a modest pool is both safe and
+    // dramatically faster.
+    max: 10,
 
     // Hand the connection back quickly so an idle page view doesn't hold a
     // slot, and recycle periodically so a half-dead socket can't persist.
