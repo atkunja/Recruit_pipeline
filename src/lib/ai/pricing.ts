@@ -27,6 +27,14 @@ const PRICES: Record<string, ModelPrice> = {
   "gpt-5-mini": { input: 0.25, output: 2.0, cachedInput: 0.025 },
   "gpt-5-nano": { input: 0.05, output: 0.4, cachedInput: 0.005 },
 
+  // GPT-5.6 family (July 2026), cheapest to most capable: Luna, Terra, Sol.
+  // Cached-input rates are not published separately, so they are set equal to
+  // the standard input rate — that over-counts rather than under-counts, which
+  // is the safe direction for the budget guard.
+  "gpt-5.6-luna": { input: 1.0, output: 6.0, cachedInput: 1.0 },
+  "gpt-5.6-terra": { input: 2.5, output: 15.0, cachedInput: 2.5 },
+  "gpt-5.6-sol": { input: 5.0, output: 30.0, cachedInput: 5.0 },
+
   // Moonshot (Kimi), used via OPENAI_BASE_URL. Rounded UP from published
   // rates on purpose: over-estimating makes the budget guard stop early,
   // under-estimating lets it overspend. Third-party hosts (Groq, Together,
