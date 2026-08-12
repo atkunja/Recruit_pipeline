@@ -46,9 +46,9 @@ interface Check {
 
 const CHECKS: Check[] = [
   {
-    label: "Transaction pooler",
+    label: "Session pooler",
     variable: "DATABASE_URL",
-    expectedPort: "6543",
+    expectedPort: "5432",
     purpose: "the app's queries",
   },
   {
