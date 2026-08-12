@@ -3,8 +3,8 @@ import { BudgetExceededError } from "./ai/budget";
 
 /** Shared route-handler plumbing: consistent errors and param parsing. */
 
-export function ok<T>(data: T): NextResponse {
-  return NextResponse.json(data satisfies T);
+export function ok(data: unknown): NextResponse {
+  return NextResponse.json(data);
 }
 
 export function badRequest(message: string): NextResponse {

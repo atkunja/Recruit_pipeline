@@ -16,7 +16,12 @@ export interface LogActivityInput {
   applicationId?: number | null;
   contactId?: number | null;
   companyId?: number | null;
-  meta?: Record<string, unknown>;
+  /**
+   * Arbitrary JSON payload. Typed as `object` rather than
+   * `Record<string, unknown>` so callers can pass plain interfaces (which have
+   * no index signature) without restating them.
+   */
+  meta?: object;
 }
 
 export async function logActivity(input: LogActivityInput): Promise<void> {
