@@ -5,7 +5,7 @@ import { gmailStatus } from "@/lib/gmail/client";
 import { handleError } from "@/lib/api";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /** Scheduled Gmail sync. Authenticated with CRON_SECRET. */
 export async function GET(request: Request): Promise<Response> {

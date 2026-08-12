@@ -4,7 +4,7 @@ import { logActivity } from "@/lib/activity";
 import { handleError } from "@/lib/api";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /**
  * Scheduled follow-up drafting.
