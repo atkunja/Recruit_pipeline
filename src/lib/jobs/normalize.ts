@@ -74,14 +74,53 @@ export function buildDedupeKey(
   title: string,
   primaryLocation: string | null,
 ): string {
-  const location = (primaryLocation ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 24);
-  return hashText(`${companySlug}::${normalizeTitle(title)}::${location}`).slice(
-    0,
-    32,
-  );
+  return hashText(
+    `${companySlug}::${normalizeTitle(title)}::${canonicalLocationKey(primaryLocation)}`,
+  ).slice(0, 32);
+}
+
+/** Shorthands boards use for the same city. */
+const CITY_ALIASES: Record<string, string> = {
+  sf: "sanfrancisco",
+  sfo: "sanfrancisco",
+  nyc: "newyork",
+  ny: "newyork",
+  manhattan: "newyork",
+  brooklyn: "newyork",
+  la: "losangeles",
+  dc: "washington",
+  bayarea: "sanfrancisco",
+  siliconvalley: "sanfrancisco",
+  paloalto: "sanfrancisco",
+  mountainview: "sanfrancisco",
+  menlopark: "sanfrancisco",
+  cambridge: "boston",
+  bellevue: "seattle",
+  redmond: "seattle",
+};
+
+/**
+ * A comparable form of a location, for the dedupe key.
+ *
+ * Boards write the same office a dozen ways — "San Francisco, CA", "SF",
+ * "San Francisco, California", "Bay Area". Hashing the raw string meant the
+ * same posting on two boards produced two keys and showed up twice; Sentry's
+ * Summer 2027 internship appeared twice on Discover for exactly this reason.
+ *
+ * Only the city survives: state and country are dropped, since they never
+ * distinguish two postings that agree on the city.
+ */
+export function canonicalLocationKey(location: string | null | undefined): string {
+  if (!location) return "";
+
+  const lower = location.toLowerCase().trim();
+  if (REMOTE_PATTERN.test(lower)) return "remote";
+
+  // Take the part before the first comma — the city.
+  const city = (lower.split(",")[0] ?? "").replace(/[^a-z0-9]+/g, "");
+  if (city.length === 0) return "";
+
+  return (CITY_ALIASES[city] ?? city).slice(0, 24);
 }
 
 const REMOTE_PATTERN = /\b(remote|work from home|wfh|distributed|anywhere)\b/i;
