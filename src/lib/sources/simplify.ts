@@ -38,12 +38,27 @@ interface SimplifyListing {
   date_updated?: number;
 }
 
-/** Categories worth ingesting for a software-focused search. */
+/**
+ * Categories worth ingesting for a software-focused search.
+ *
+ * The feed uses short labels ("Software", "AI/ML/Data", "Quant") while the
+ * README headings use long ones ("Software Engineering", "Quantitative
+ * Finance"), and both appear in the data — older rows carry the long form.
+ * Matching is normalized so either spelling works.
+ */
 const DEFAULT_CATEGORIES = [
+  "Software",
   "Software Engineering",
+  "AI/ML/Data",
   "Data Science, AI & Machine Learning",
+  "Quant",
   "Quantitative Finance",
 ];
+
+/** Lowercase and strip punctuation so "AI/ML/Data" matches "ai ml data". */
+function normalizeCategory(category: string): string {
+  return category.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
 
 export const simplifyAdapter: SourceAdapter = {
   kind: "simplify",
@@ -69,7 +84,7 @@ export const simplifyAdapter: SourceAdapter = {
       45_000,
     );
 
-    const wanted = new Set(categories);
+    const wanted = new Set(categories.map(normalizeCategory));
     const postings: RawPosting[] = [];
 
     for (const listing of Array.isArray(listings) ? listings : []) {
@@ -81,7 +96,11 @@ export const simplifyAdapter: SourceAdapter = {
       const url = listing.url?.trim();
       if (!title || !company || !url) continue;
 
-      if (wanted.size > 0 && listing.category && !wanted.has(listing.category)) {
+      if (
+        wanted.size > 0 &&
+        listing.category &&
+        !wanted.has(normalizeCategory(listing.category))
+      ) {
         continue;
       }
 
