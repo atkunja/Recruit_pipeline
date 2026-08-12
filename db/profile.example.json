@@ -1,0 +1,99 @@
+{
+  "_readme": [
+    "Copy this file to db/profile.json and replace every value with your real,",
+    "verified information. db/profile.json is gitignored.",
+    "",
+    "This file is the ONLY source of biographical fact in the system. The AI is",
+    "never allowed to state anything that is not derivable from it, so anything",
+    "you leave as a placeholder will simply be absent from your resumes rather",
+    "than invented.",
+    "",
+    "Then run: npm run db:seed"
+  ],
+
+  "profile": {
+    "fullName": "Your Name",
+    "email": "you@example.com",
+    "phone": "(555) 555-5555",
+    "location": "Ann Arbor, MI",
+
+    "university": "University of Michigan",
+    "degree": "B.S.E.",
+    "major": "Computer Science",
+    "minor": null,
+    "graduationDate": "2028-05-01",
+    "gpa": "3.85",
+
+    "workAuthorization": "US Citizen",
+    "needsSponsorship": false,
+
+    "githubUrl": "https://github.com/yourhandle",
+    "linkedinUrl": "https://linkedin.com/in/yourhandle",
+    "portfolioUrl": null,
+
+    "targetSeason": "Summer 2027",
+    "preferredLocations": [
+      "San Francisco, CA",
+      "Seattle, WA",
+      "New York, NY",
+      "Austin, TX",
+      "Remote"
+    ],
+    "targetCategories": [
+      "backend",
+      "infrastructure",
+      "cloud",
+      "distributed systems",
+      "platform",
+      "developer tools",
+      "autonomy"
+    ],
+    "targetCompanies": [],
+
+    "summary": "One or two sentences about what you build and what you want next. Used as context for tailoring and outreach."
+  },
+
+  "skills": [
+    { "name": "Python", "category": "language", "proficiency": 5 },
+    { "name": "TypeScript", "category": "language", "proficiency": 4 },
+    { "name": "Go", "category": "language", "proficiency": 3 },
+    { "name": "C++", "category": "language", "proficiency": 3 },
+    { "name": "SQL", "category": "language", "proficiency": 4 },
+    { "name": "React", "category": "framework", "proficiency": 4 },
+    { "name": "Node.js", "category": "framework", "proficiency": 4 },
+    { "name": "PostgreSQL", "category": "database", "proficiency": 4 },
+    { "name": "Redis", "category": "database", "proficiency": 3 },
+    { "name": "AWS", "category": "cloud", "proficiency": 3 },
+    { "name": "Docker", "category": "tool", "proficiency": 4 },
+    { "name": "Kubernetes", "category": "tool", "proficiency": 3 },
+    { "name": "Git", "category": "tool", "proficiency": 5 },
+    { "name": "Distributed Systems", "category": "domain", "proficiency": 3 }
+  ],
+
+  "experiences": [
+    {
+      "kind": "internship",
+      "organization": "Example Company",
+      "title": "Software Engineering Intern",
+      "location": "San Francisco, CA",
+      "startDate": "2025-05-12",
+      "endDate": "2025-08-15",
+      "isCurrent": false,
+      "description": "Worked on the backend platform team.",
+      "technologies": ["Python", "PostgreSQL", "AWS", "Docker"],
+      "categories": ["backend", "cloud"],
+      "displayOrder": 0,
+      "bullets": [
+        {
+          "canonicalText": "Replace this with a real, verified bullet describing exactly what you did, including any real metric.",
+          "skills": ["backend"],
+          "technologies": ["Python", "PostgreSQL"],
+          "metrics": [],
+          "keywords": ["api"],
+          "categories": ["backend"],
+          "strength": 7
+        }
+      ]
+    }
+  ]
+}
