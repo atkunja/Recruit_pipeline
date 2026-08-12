@@ -15,6 +15,7 @@ import {
 } from "@/components/ui";
 import { ResumePanel } from "./resume-panel";
 import { JobActions } from "./actions";
+import { ContactsPanel } from "./contacts-panel";
 import type { JobScore, ScoreComponentKey } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export default async function JobDetailPage({
   const job = await getJobDetail(jobId);
   if (!job) notFound();
 
-  const [scores, application, resume, duplicates] = await Promise.all([
+  const [scores, application, resume, duplicates, contacts] = await Promise.all([
     sql<JobScore[]>`
       select * from job_scores where job_id = ${jobId}
       order by created_at desc limit 1
@@ -39,6 +40,37 @@ export default async function JobDetailPage({
     getApplicationByJob(jobId),
     getLatestResumeForJob(jobId),
     getDuplicates(jobId),
+    sql<
+      {
+        id: number;
+        name: string;
+        title: string | null;
+        category: string;
+        email: string | null;
+        outreachValue: number;
+        status: string;
+        isAlum: boolean;
+        relevanceReason: string | null;
+        hasDraft: boolean;
+        sentCount: number;
+      }[]
+    >`
+      select
+        c.id, c.name, c.title, c.category::text, c.email, c.outreach_value,
+        c.status::text, c.is_alum, c.relevance_reason,
+        exists (
+          select 1 from outreach_messages o
+          where o.contact_id = c.id and o.job_id = ${jobId}
+            and o.status in ('draft', 'approved')
+        ) as has_draft,
+        (
+          select count(*)::int from outreach_messages o
+          where o.contact_id = c.id and o.job_id = ${jobId} and o.status = 'sent'
+        ) as sent_count
+      from contacts c
+      where c.company_id = ${job.companyId}
+      order by c.outreach_value desc
+    `,
   ]);
 
   const score = scores[0] ?? null;
@@ -130,7 +162,25 @@ export default async function JobDetailPage({
         </div>
 
         <aside className="flex flex-col gap-4">
+          {application !== null && (
+            <Link
+              href={`/applications/${application.id}`}
+              className="panel row-hover flex items-center justify-between px-3 py-2.5"
+            >
+              <span className="font-medium">Review application</span>
+              <span className="text-[11px] text-accent">Open →</span>
+            </Link>
+          )}
+
           {score !== null && <ScoreDetails score={score} />}
+
+          <ContactsPanel
+            jobId={job.id}
+            companyId={job.companyId}
+            companyName={job.companyName}
+            applicationId={application?.id ?? null}
+            contacts={contacts}
+          />
 
           {duplicates.length > 0 && (
             <Panel className="p-3">
