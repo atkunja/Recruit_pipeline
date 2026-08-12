@@ -39,6 +39,25 @@ function create(): Sql {
     // directions — including for the `sql(object)` insert/update helper.
     transform: postgres.camel,
 
+    // Parse bigint (int8) as a JS number.
+    //
+    // postgres.js returns int8 as a *string* by default to protect values past
+    // 2^53. Every id in this schema is a generated identity column that will
+    // never come close, and every type in src/lib/types.ts declares them as
+    // `number` — so the default silently made runtime disagree with the types.
+    //
+    // That mismatch was not theoretical: resume tailoring compared model-supplied
+    // numeric ids against a Set of strings, matched nothing, and produced a
+    // resume with no experience on it that still passed every fabrication check.
+    types: {
+      bigint: {
+        to: 20,
+        from: [20],
+        serialize: (value: number | string) => String(value),
+        parse: (value: string) => Number(value),
+      },
+    },
+
     // ONE connection per client instance, deliberately.
     //
     // Supabase's transaction pooler is itself the connection pool, so a second
