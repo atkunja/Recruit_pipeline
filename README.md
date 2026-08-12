@@ -116,6 +116,36 @@ Pro. This is why Actions is the default recommendation.
 
 ---
 
+## What it will and won't do on its own
+
+Everything outward-facing is gated behind an explicit click. This is the part
+worth reading before you connect Gmail.
+
+| Action | Automatic? |
+|---|---|
+| Discover, dedupe, score jobs | yes, on a schedule |
+| Tailor a resume, draft answers, draft outreach | yes, into a **draft** |
+| Update an application's status from a recruiter email | yes, only above 75% confidence — otherwise it asks |
+| **Send an email** | **no** — requires you to approve, then confirm the recipient |
+| **Submit an application** | **no** — the browser assistant fills fields and stops |
+| Answer a self-identification or salary question | **never**, unless you saved that exact answer yourself |
+
+Two feature flags exist for later (`auto_send_enabled`, `auto_submit_enabled`).
+Both default to false and nothing turns them on for you.
+
+### On finding people
+
+Contact discovery searches **your own mailbox** for humans at a company who
+have already written to you, and reads recruiter names off ATS postings. It
+does not scrape LinkedIn and does not guess email addresses from name patterns
+— guessed addresses bounce, which damages your sender reputation and gets your
+real mail filtered. Everyone else you add by hand, which the job page supports.
+
+Anti-spam is enforced in the database, not just the UI: a partial unique index
+makes it impossible to send a second initial email to the same person about the
+same job. Follow-ups wait 5 days, happen at most once, stop if they reply, and
+still only produce a draft.
+
 ## How a job becomes an application
 
 Each step is ordered so the expensive one runs last and on the fewest rows:
@@ -131,10 +161,40 @@ Each step is ordered so the expensive one runs last and on the fewest rows:
 4. **Scoring** ([`score.ts`](src/lib/scoring/score.ts)) — the first step that
    costs money. Cached on `(job, weights, description hash)`, so an unchanged
    listing is never re-scored.
-5. **Prepare** ([`prepare.ts`](src/lib/pipeline/prepare.ts)) tailors a resume
-   and queues it for review.
+5. **Prepare** ([`prepare.ts`](src/lib/pipeline/prepare.ts)) tailors a resume,
+   drafts answers to the usual application questions, looks for contacts,
+   drafts one outreach email, and queues the whole thing for review.
 
 Nothing is submitted or emailed without an explicit approval.
+
+## Applying
+
+```bash
+npm run apply -- <applicationId>
+```
+
+Opens the posting in a real browser, fills contact details, links and the
+resume from your approved package, prints the prepared answers, and stops. It
+refuses to run at all if the resume isn't approved or questions are unanswered
+(override with `--force`). You submit; it then asks whether you did, and only
+marks the application applied if you say yes.
+
+Coverage: Greenhouse and Lever fill reliably; Ashby is partial (dynamic fields);
+Workday fills the first step only. Anything else prints the package for you to
+copy. Playwright runs locally on purpose — a headless Chromium does not belong
+in a serverless function.
+
+## Analytics
+
+Rates are computed against honest denominators (interview rate over
+*applications*, not over everything discovered), and a percentage is shown as
+`—` until there are at least 5 data points behind it.
+
+Insights are deterministic, not model-generated, and only surface when each
+group being compared has ≥8 applications and the gap is ≥15 points — labelled
+*emerging* until ≥20, then *solid*. A conclusion drawn from three applications
+is worse than no conclusion, so the engine stays quiet instead.
+`test/insights.test.ts` asserts that silence.
 
 ## Cost control
 
