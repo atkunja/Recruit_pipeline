@@ -1,0 +1,127 @@
+import Link from "next/link";
+import { JobCard } from "@/components/job-card";
+import { EmptyState, PageHeader } from "@/components/ui";
+import { listDiscoverJobs, type DiscoverFilters } from "@/lib/jobs/repository";
+import { getScoringWeights } from "@/lib/settings";
+import { APPLICATION_STATUSES, type ApplicationStatus } from "@/lib/types";
+import { DiscoverFiltersBar } from "./filters";
+
+export const dynamic = "force-dynamic";
+
+interface SearchParams {
+  minScore?: string;
+  company?: string;
+  q?: string;
+  location?: string;
+  since?: string;
+  status?: string;
+  sort?: string;
+  ignored?: string;
+}
+
+export default async function DiscoverPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const weights = await getScoringWeights();
+
+  // Default to the configured display floor rather than showing everything —
+  // the whole point of scoring is to not read 400 postings a day.
+  const minScore =
+    params.minScore === undefined
+      ? weights.minimumDisplayScore
+      : params.minScore === ""
+        ? null
+        : Number(params.minScore);
+
+  const status = APPLICATION_STATUSES.includes(params.status as ApplicationStatus)
+    ? (params.status as ApplicationStatus)
+    : params.status === "none"
+      ? "none"
+      : null;
+
+  const filters: DiscoverFilters = {
+    minScore: Number.isFinite(minScore) ? minScore : null,
+    companyId: params.company ? Number(params.company) : null,
+    search: params.q ?? null,
+    location: params.location ?? null,
+    discoveredSince: params.since ? sinceToIso(params.since) : null,
+    status,
+    includeIgnored: params.ignored === "1",
+    sort: params.sort === "discovered" || params.sort === "posted"
+      ? params.sort
+      : "score",
+    limit: 150,
+  };
+
+  const jobs = await listDiscoverJobs(filters);
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const newToday = jobs.filter(
+    (job) => new Date(job.discoveredAt) >= startOfToday,
+  ).length;
+
+  return (
+    <>
+      <PageHeader
+        title="Discover"
+        subtitle={
+          <>
+            <span className="font-medium text-text">{jobs.length}</span> matching
+            {" "}
+            {jobs.length === 1 ? "opportunity" : "opportunities"}
+            {newToday > 0 && (
+              <>
+                {" · "}
+                <span className="text-success">{newToday} new today</span>
+              </>
+            )}
+          </>
+        }
+        actions={
+          <Link
+            href="/jobs/new"
+            className="rounded-md border border-border px-2.5 py-1.5 text-muted transition-colors hover:border-border-strong hover:text-text"
+          >
+            Add job manually
+          </Link>
+        }
+      />
+
+      <DiscoverFiltersBar defaultMinScore={weights.minimumDisplayScore} />
+
+      {jobs.length === 0 ? (
+        <EmptyState
+          title="Nothing here yet"
+          hint="Either discovery hasn't run, or your filters are too tight. Lower the minimum score, or run discovery from Settings → Sources."
+          action={
+            <Link
+              href="/discover?minScore="
+              className="rounded-md bg-accent px-3 py-1.5 font-medium text-accent-fg"
+            >
+              Show all scores
+            </Link>
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {jobs.map((job) => (
+            <JobCard key={job.id} job={job} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Translate the `since` shortcut into an ISO timestamp. */
+function sinceToIso(since: string): string | null {
+  const now = Date.now();
+  const days: Record<string, number> = { "1d": 1, "3d": 3, "7d": 7, "30d": 30 };
+  const value = days[since];
+  if (value === undefined) return null;
+  return new Date(now - value * 86400_000).toISOString();
+}
