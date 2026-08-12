@@ -32,11 +32,35 @@ function create(): Sql {
   });
 }
 
-export const sql: Sql = globalForDb.__sql ?? create();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.__sql = sql;
+function instance(): Sql {
+  const existing = globalForDb.__sql;
+  if (existing) return existing;
+  const created = create();
+  globalForDb.__sql = created;
+  return created;
 }
+
+/**
+ * The query client.
+ *
+ * A proxy rather than a plain instance so the connection — and the read of
+ * DATABASE_URL — is deferred to the first query. `next build` imports every
+ * module to collect page metadata, and connecting at import time would make a
+ * build fail on a machine that has no database credentials.
+ */
+export const sql: Sql = new Proxy(function noop() {} as unknown as Sql, {
+  apply(_target, _thisArg, args: unknown[]) {
+    return (instance() as unknown as (...a: unknown[]) => unknown)(...args);
+  },
+  get(_target, property) {
+    const client = instance() as unknown as Record<string | symbol, unknown>;
+    const value = client[property];
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+  has(_target, property) {
+    return property in (instance() as unknown as object);
+  },
+});
 
 /** The transaction-scoped client handed to `transaction()` callbacks. */
 export type Tx = postgres.TransactionSql<Record<string, unknown>>;
