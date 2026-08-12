@@ -2,7 +2,7 @@
   "name": "recruiting-pipeline",
   "version": "0.1.0",
   "private": true,
-  "description": "Personal AI recruiting operating system — single user.",
+  "description": "Personal AI recruiting operating system \u2014 single user.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,6 +10,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "node --import ./test/register.mjs --test \"test/**/*.test.ts\"",
+    "db:check": "node scripts/check-db.ts",
     "db:migrate": "node scripts/migrate.ts",
     "db:seed": "node scripts/seed.ts",
     "discover": "node scripts/discover.ts",
