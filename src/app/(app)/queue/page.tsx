@@ -45,7 +45,7 @@ export default async function QueuePage() {
           {applications.map((item) => (
             <Link
               key={item.applicationId}
-              href={`/jobs/${item.id}`}
+              href={`/applications/${item.applicationId}`}
               className="panel row-hover flex items-center gap-3 px-3 py-2.5"
             >
               <ScoreBadge score={item.score} />
