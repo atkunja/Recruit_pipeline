@@ -20,7 +20,13 @@ const globalForOpenAi = globalThis as unknown as { __openai?: OpenAI };
 function client(): OpenAI {
   const existing = globalForOpenAi.__openai;
   if (existing) return existing;
-  const created = new OpenAI({ apiKey: env.openaiApiKey, maxRetries: 0 });
+  const created = new OpenAI({
+    apiKey: env.openaiApiKey,
+    // Undefined means OpenAI's own endpoint; set OPENAI_BASE_URL to point at
+    // any OpenAI-compatible provider instead.
+    baseURL: env.openaiBaseUrl,
+    maxRetries: 0,
+  });
   globalForOpenAi.__openai = created;
   return created;
 }

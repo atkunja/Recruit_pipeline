@@ -51,6 +51,17 @@ export const env = {
   get openaiApiKey(): string {
     return required("OPENAI_API_KEY");
   },
+  /**
+   * API base URL. Defaults to OpenAI's.
+   *
+   * Any OpenAI-compatible endpoint works — Moonshot (Kimi), Together, Groq,
+   * Fireworks, OpenRouter, or a local server. Set it together with model names
+   * that provider recognises, and add a price entry in ai/pricing.ts so the
+   * budget guard doesn't fall back to its pessimistic default.
+   */
+  get openaiBaseUrl(): string | undefined {
+    return read("OPENAI_BASE_URL");
+  },
   get modelCheap(): string {
     return optional("OPENAI_MODEL_CHEAP", "gpt-4.1-mini");
   },
