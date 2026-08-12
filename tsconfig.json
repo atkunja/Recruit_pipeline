@@ -11,6 +11,9 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // Tests import source files with an explicit .ts extension so Node's ESM
+    // resolver can load them directly; safe here because we never emit.
+    "allowImportingTsExtensions": true,
     "jsx": "preserve",
     "incremental": true,
     "noUncheckedIndexedAccess": true,
