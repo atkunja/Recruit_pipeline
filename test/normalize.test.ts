@@ -1,0 +1,219 @@
+import { test, describe } from "node:test";
+import assert from "node:assert/strict";
+import {
+  buildDedupeKey,
+  detectRemote,
+  detectSeason,
+  extractSections,
+  htmlToText,
+  isUnitedStates,
+  normalizeTitle,
+  parseLocations,
+  slugifyCompany,
+} from "../src/lib/jobs/normalize.ts";
+
+describe("slugifyCompany", () => {
+  test("collapses legal suffixes and punctuation", () => {
+    assert.equal(slugifyCompany("Databricks, Inc."), "databricks");
+    assert.equal(slugifyCompany("databricks"), "databricks");
+    assert.equal(slugifyCompany("DATABRICKS INC"), "databricks");
+  });
+
+  test("keeps distinct companies distinct", () => {
+    assert.notEqual(slugifyCompany("Ramp"), slugifyCompany("Rampart"));
+  });
+
+  test("expands ampersands rather than dropping them", () => {
+    assert.equal(slugifyCompany("Ernst & Young"), "ernst-and-young");
+  });
+
+  test("strips diacritics", () => {
+    assert.equal(slugifyCompany("Société Générale"), slugifyCompany("Societe Generale"));
+  });
+
+  test("never returns an empty slug", () => {
+    assert.notEqual(slugifyCompany("!!!"), "");
+    assert.notEqual(slugifyCompany("株式会社"), "");
+  });
+});
+
+describe("normalizeTitle", () => {
+  test("strips season, year, and parentheticals", () => {
+    assert.equal(
+      normalizeTitle("Software Engineer Intern (Summer 2027)"),
+      "software engineer",
+    );
+  });
+
+  test("makes two boards' wording of one role converge", () => {
+    const a = normalizeTitle("Software Engineering Intern - Backend (Summer 2027)");
+    const b = normalizeTitle("Backend Software Engineering Intern, Summer 2027");
+    // Same words, and that is what the dedupe key hashes.
+    assert.deepEqual([...a.split(" ")].sort(), [...b.split(" ")].sort());
+  });
+
+  test("keeps meaningful specialisation", () => {
+    assert.match(normalizeTitle("SWE Intern, Cloud Infrastructure"), /cloud/);
+    assert.match(normalizeTitle("SWE Intern, Cloud Infrastructure"), /infrastructure/);
+  });
+
+  test("falls back to the original when everything is noise", () => {
+    assert.equal(normalizeTitle("Intern"), "intern");
+    assert.equal(normalizeTitle("Summer 2027"), "summer 2027");
+  });
+});
+
+describe("buildDedupeKey", () => {
+  test("matches the same job seen on two boards", () => {
+    const greenhouse = buildDedupeKey(
+      "databricks",
+      "Software Engineer Intern (Summer 2027)",
+      "San Francisco, CA",
+    );
+    const simplify = buildDedupeKey(
+      "databricks",
+      "Software Engineer Intern, Summer 2027",
+      "San Francisco, CA",
+    );
+    assert.equal(greenhouse, simplify);
+  });
+
+  test("separates the same title in different cities", () => {
+    assert.notEqual(
+      buildDedupeKey("stripe", "SWE Intern", "Seattle, WA"),
+      buildDedupeKey("stripe", "SWE Intern", "New York, NY"),
+    );
+  });
+
+  test("separates different roles at one company", () => {
+    assert.notEqual(
+      buildDedupeKey("stripe", "Backend Engineer Intern", "Seattle, WA"),
+      buildDedupeKey("stripe", "Frontend Engineer Intern", "Seattle, WA"),
+    );
+  });
+
+  test("tolerates a missing location", () => {
+    assert.equal(typeof buildDedupeKey("stripe", "SWE Intern", null), "string");
+  });
+});
+
+describe("detectRemote", () => {
+  test("detects remote", () => {
+    assert.equal(detectRemote("Remote - US"), true);
+    assert.equal(detectRemote("Work from home"), true);
+  });
+
+  test("treats hybrid as not remote", () => {
+    assert.equal(detectRemote("Remote (Hybrid)"), false);
+    assert.equal(detectRemote("Hybrid - Seattle"), false);
+  });
+
+  test("handles null", () => {
+    assert.equal(detectRemote(null), false);
+  });
+});
+
+describe("isUnitedStates", () => {
+  test("accepts US city/state pairs", () => {
+    assert.equal(isUnitedStates(["Ann Arbor, MI"]), true);
+    assert.equal(isUnitedStates(["New York, NY 10001"]), true);
+  });
+
+  test("rejects foreign offices", () => {
+    assert.equal(isUnitedStates(["London, United Kingdom"]), false);
+    assert.equal(isUnitedStates(["Bengaluru, India"]), false);
+    assert.equal(isUnitedStates(["Toronto, Ontario"]), false);
+  });
+
+  test("accepts a US location listed alongside a foreign one", () => {
+    assert.equal(isUnitedStates(["London, UK", "Seattle, WA"]), true);
+  });
+
+  test("is false for no location at all", () => {
+    assert.equal(isUnitedStates([]), false);
+  });
+});
+
+describe("parseLocations", () => {
+  test("splits multi-location strings", () => {
+    assert.deepEqual(parseLocations("Seattle, WA; New York, NY"), [
+      "Seattle, WA",
+      "New York, NY",
+    ]);
+    assert.deepEqual(parseLocations("Austin, TX | Remote"), ["Austin, TX", "Remote"]);
+  });
+
+  test("leaves a single location intact, comma and all", () => {
+    assert.deepEqual(parseLocations("San Francisco, CA"), ["San Francisco, CA"]);
+  });
+
+  test("returns empty for null", () => {
+    assert.deepEqual(parseLocations(null), []);
+  });
+});
+
+describe("detectSeason", () => {
+  test("reads the season out of a title", () => {
+    assert.equal(detectSeason("SWE Intern, Summer 2027"), "Summer 2027");
+    assert.equal(detectSeason("2027 Summer Internship"), "Summer 2027");
+  });
+
+  test("prefers the title over the description", () => {
+    assert.equal(
+      detectSeason("Summer 2027 Intern", "We also run a Fall 2026 program"),
+      "Summer 2027",
+    );
+  });
+
+  test("infers summer from a May–August window", () => {
+    assert.equal(
+      detectSeason("Engineering Intern", "The program runs May 2027 through August 2027."),
+      "Summer 2027",
+    );
+  });
+
+  test("normalises Autumn to Fall", () => {
+    assert.equal(detectSeason("Autumn 2027 Internship"), "Fall 2027");
+  });
+
+  test("returns null when the posting never says", () => {
+    assert.equal(detectSeason("Software Engineer", null), null);
+  });
+});
+
+describe("htmlToText", () => {
+  test("converts list items to bullets and strips tags", () => {
+    const text = htmlToText("<ul><li>Rust</li><li>Go</li></ul>");
+    assert.match(text, /• Rust/);
+    assert.match(text, /• Go/);
+    assert.doesNotMatch(text, /</);
+  });
+
+  test("decodes entities", () => {
+    assert.equal(htmlToText("<p>R&amp;D &quot;team&quot;</p>"), 'R&D "team"');
+  });
+
+  test("drops script contents entirely", () => {
+    assert.doesNotMatch(htmlToText("<script>alert(1)</script><p>hi</p>"), /alert/);
+  });
+});
+
+describe("extractSections", () => {
+  test("pulls requirements and preferred apart", () => {
+    const description = [
+      "About us: we build things.",
+      "Basic Qualifications: Pursuing a BS in Computer Science. Experience with Python and distributed systems.",
+      "Preferred Qualifications: Familiarity with Kubernetes and Go, plus an interest in developer tooling.",
+    ].join("\n\n");
+
+    const { requirements, preferred } = extractSections(description);
+    assert.match(String(requirements), /BS in Computer Science/);
+    assert.match(String(preferred), /Kubernetes/);
+  });
+
+  test("returns null when there are no headings", () => {
+    const { requirements, preferred } = extractSections("Just a paragraph.");
+    assert.equal(requirements, null);
+    assert.equal(preferred, null);
+  });
+});
