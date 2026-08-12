@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { sql } from "../db";
+import { json, sql } from "../db";
 import { complete, modelFor } from "../ai/client";
 import { hashText } from "../jobs/normalize";
 import {
@@ -133,7 +133,7 @@ export async function scoreJob(input: ScoreJobInput): Promise<JobScore> {
       strongest_skills, missing_requirements, concerns, emphasize,
       weights_hash, description_hash, model
     ) values (
-      ${job.id}, ${total}, ${sql.json(components)}, ${response.summary},
+      ${job.id}, ${total}, ${sql.json(json(components))}, ${response.summary},
       ${strongestExperienceIds}, ${response.strongestSkills.slice(0, 8)},
       ${response.missingRequirements.slice(0, 8)},
       ${response.concerns.slice(0, 6)}, ${response.emphasize.slice(0, 8)},

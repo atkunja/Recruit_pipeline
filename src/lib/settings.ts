@@ -1,5 +1,5 @@
 import "server-only";
-import { sql } from "./db";
+import { json, sql } from "./db";
 import { DEFAULT_WEIGHTS, parseWeights, type ScoringWeights } from "./scoring/weights";
 
 /** Typed accessors over the `settings` key/value table. */
@@ -15,7 +15,7 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
 export async function setSetting(key: string, value: unknown): Promise<void> {
   await sql`
     insert into settings (key, value, updated_at)
-    values (${key}, ${sql.json(value as never)}, now())
+    values (${key}, ${sql.json(json(value))}, now())
     on conflict (key) do update
       set value = excluded.value, updated_at = now()
   `;

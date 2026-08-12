@@ -38,14 +38,24 @@ if (process.env.NODE_ENV !== "production") {
   globalForDb.__sql = sql;
 }
 
+/** The transaction-scoped client handed to `transaction()` callbacks. */
+export type Tx = postgres.TransactionSql<Record<string, unknown>>;
+
 /**
  * Run a set of statements inside a transaction.
  * Thin wrapper so call sites don't import `postgres` types directly.
  */
-export function transaction<T>(
-  fn: (tx: Parameters<Parameters<Sql["begin"]>[0]>[0]) => Promise<T>,
-): Promise<T> {
-  return sql.begin(fn) as Promise<T>;
+export function transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return sql.begin((tx) => fn(tx as Tx)) as Promise<T>;
+}
+
+/**
+ * Cast a plain object to the shape `sql.json()` accepts.
+ * Our domain types are JSON-serializable but lack the index signature the
+ * driver's `JSONValue` requires, and adding one to every type would weaken it.
+ */
+export function json(value: unknown): postgres.JSONValue {
+  return value as postgres.JSONValue;
 }
 
 /** Narrow a query result to its first row, or null when empty. */
