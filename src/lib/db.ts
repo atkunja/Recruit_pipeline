@@ -18,6 +18,9 @@ const globalForDb = globalThis as unknown as { __sql?: Sql };
 function create(): Sql {
   return postgres(env.databaseUrl, {
     prepare: false,
+    // snake_case in Postgres, camelCase in TypeScript, translated in both
+    // directions — including for the `sql(object)` insert/update helper.
+    transform: postgres.camel,
     // One user, serverless: a tiny pool is plenty and keeps us far away from
     // Supabase free-tier connection limits.
     max: 3,
