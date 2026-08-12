@@ -196,6 +196,38 @@ group being compared has ≥8 applications and the gap is ≥15 points — label
 is worse than no conclusion, so the engine stays quiet instead.
 `test/insights.test.ts` asserts that silence.
 
+## Using a different model provider
+
+The client talks to any OpenAI-compatible endpoint. To run Kimi instead:
+
+```bash
+OPENAI_BASE_URL="https://api.moonshot.ai/v1"
+OPENAI_API_KEY="<moonshot key>"
+OPENAI_MODEL_CHEAP="kimi-k2"
+OPENAI_MODEL_STRONG="kimi-k2"
+```
+
+Three things to know before you do:
+
+- **Add a price entry.** `src/lib/ai/pricing.ts` bills unknown models at a
+  deliberately pessimistic $5/$20 per M tokens, so an unpriced model will trip
+  the budget guard almost immediately. Kimi and Moonshot rates are already in
+  the table; third-party hosts charge more than Moonshot direct, so put your
+  actual provider's rate in if you use one.
+- **JSON mode has to work.** Every call uses
+  `response_format: { type: "json_object" }`. Moonshot supports it. Some
+  OpenRouter routes silently don't, in which case output fails Zod validation
+  and retries twice before erroring — you'll see it immediately, not subtly.
+- **Safety doesn't depend on the model.** `checkIntegrity` is deterministic, so
+  a weaker model can't fabricate its way past it. It just fails the check more
+  often and falls back to your canonical bullet wording.
+
+Mixing is supported and probably the right call: a cheap model for scoring and
+email classification (high volume, low stakes) and a stronger one for resume
+tailoring and outreach (low volume, and the wording is the whole point). The
+Analytics page breaks spend down by purpose so you can see which is actually
+costing you anything.
+
 ## Cost control
 
 - Deterministic filtering before any model call — a run touches thousands of
