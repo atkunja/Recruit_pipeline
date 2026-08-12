@@ -8,8 +8,12 @@ import { DiscoverFiltersBar } from "./filters";
 
 export const dynamic = "force-dynamic";
 
+/** Rows per page. The feed is dense, so a page of markup adds up fast. */
+const PAGE_SIZE = 50;
+
 interface SearchParams {
   minScore?: string;
+  limit?: string;
   company?: string;
   q?: string;
   location?: string;
@@ -26,6 +30,11 @@ export default async function DiscoverPage({
 }) {
   const params = await searchParams;
   const weights = await getScoringWeights();
+
+  const requested = Number(params.limit ?? PAGE_SIZE);
+  const shown = Number.isFinite(requested)
+    ? Math.min(Math.max(requested, PAGE_SIZE), 500)
+    : PAGE_SIZE;
 
   // Default to the configured display floor rather than showing everything —
   // the whole point of scoring is to not read 400 postings a day.
@@ -53,10 +62,13 @@ export default async function DiscoverPage({
     sort: params.sort === "discovered" || params.sort === "posted"
       ? params.sort
       : "score",
-    limit: 150,
+    // Fetch one extra to know whether another page exists without a count query.
+    limit: shown + 1,
   };
 
-  const jobs = await listDiscoverJobs(filters);
+  const fetched = await listDiscoverJobs(filters);
+  const hasMore = fetched.length > shown;
+  const jobs = hasMore ? fetched.slice(0, shown) : fetched;
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -107,11 +119,32 @@ export default async function DiscoverPage({
           }
         />
       ) : (
-        <div className="flex flex-col gap-1.5">
-          {jobs.map((job) => (
-            <JobCard key={job.id} job={job} />
-          ))}
-        </div>
+        <>
+          <div className="flex flex-col gap-1.5">
+            {jobs.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="mt-3 flex justify-center">
+              <Link
+                href={`/discover?${new URLSearchParams({
+                  ...Object.fromEntries(
+                    Object.entries(params).filter(
+                      ([key, value]) => key !== "limit" && value !== undefined,
+                    ) as [string, string][],
+                  ),
+                  limit: String(shown + PAGE_SIZE),
+                }).toString()}`}
+                scroll={false}
+                className="rounded-md border border-border px-3 py-1.5 text-muted transition-colors hover:border-border-strong hover:text-text"
+              >
+                Show {PAGE_SIZE} more
+              </Link>
+            </div>
+          )}
+        </>
       )}
     </>
   );
