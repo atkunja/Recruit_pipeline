@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — dark-first, dense, Linear/Ramp-adjacent.
+ * Everything the UI uses routes through these so a palette change is one edit.
+ */
+@theme {
+  --color-bg: #08090a;
+  --color-panel: #0d0e10;
+  --color-surface: #121316;
+  --color-raised: #17181c;
+  --color-border: #202126;
+  --color-border-strong: #2b2d33;
+
+  --color-text: #eceef2;
+  --color-muted: #8a8f98;
+  --color-faint: #5c6069;
+
+  --color-accent: #6169d5;
+  --color-accent-fg: #ffffff;
+  --color-accent-soft: #1b1e3a;
+
+  --color-success: #46b57e;
+  --color-success-soft: #10281d;
+  --color-warn: #d9a441;
+  --color-warn-soft: #2a2011;
+  --color-danger: #e05563;
+  --color-danger-soft: #2c1418;
+  --color-info: #4a9fd5;
+  --color-info-soft: #0f2330;
+
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Inter",
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas,
+    monospace;
+
+  --radius-panel: 0.625rem;
+
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Dense tabular data reads better with lining figures. */
+  table,
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-accent-fg);
+  }
+
+  /* Keyboard users get a visible ring; mouse users don't. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border: 3px solid var(--color-bg);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-faint);
+  }
+}
+
+@layer components {
+  .panel {
+    background-color: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-panel);
+  }
+
+  /* Small uppercase section eyebrow used across the dashboard. */
+  .eyebrow {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-faint);
+  }
+
+  .row-hover {
+    transition: background-color 120ms var(--ease-out-quint);
+  }
+  .row-hover:hover {
+    background-color: var(--color-surface);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
