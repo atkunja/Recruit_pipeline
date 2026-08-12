@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildDedupeKey,
+  canonicalLocationKey,
   detectRemote,
   detectSeason,
   extractSections,
@@ -261,5 +262,53 @@ describe("isUnitedStates — accepts real-world US formats", () => {
 
   test("a US city alongside a foreign one still counts", () => {
     assert.equal(isUnitedStates(["London, UK", "Chicago, IL"]), true);
+  });
+});
+
+describe("canonicalLocationKey", () => {
+  test("collapses the many spellings of one city", () => {
+    const sf = canonicalLocationKey("San Francisco, CA");
+    for (const variant of ["SF", "san francisco", "San Francisco, California", "Bay Area"]) {
+      assert.equal(canonicalLocationKey(variant), sf, variant);
+    }
+  });
+
+  test("collapses New York spellings", () => {
+    const ny = canonicalLocationKey("New York, NY");
+    for (const variant of ["NYC", "Brooklyn", "Manhattan, NY"]) {
+      assert.equal(canonicalLocationKey(variant), ny, variant);
+    }
+  });
+
+  test("keeps genuinely different cities apart", () => {
+    assert.notEqual(canonicalLocationKey("Seattle, WA"), canonicalLocationKey("Austin, TX"));
+  });
+
+  test("treats remote as its own place", () => {
+    assert.equal(canonicalLocationKey("Remote - US"), "remote");
+  });
+
+  test("handles absence", () => {
+    assert.equal(canonicalLocationKey(null), "");
+    assert.equal(canonicalLocationKey(""), "");
+  });
+});
+
+describe("buildDedupeKey — cross-board matching", () => {
+  test("one posting listed two ways on two boards collapses", () => {
+    // The real case: Sentry's Summer 2027 internship appeared twice on
+    // Discover because the titles were punctuated differently and one board
+    // said "SF" while the other said "San Francisco, CA".
+    assert.equal(
+      buildDedupeKey("sentry", "Software Engineer, Intern (Summer 2027)", "San Francisco, CA"),
+      buildDedupeKey("sentry", "Software Engineer Intern - Summer 2027", "SF"),
+    );
+  });
+
+  test("the same role in two cities stays separate", () => {
+    assert.notEqual(
+      buildDedupeKey("sentry", "Software Engineer Intern", "San Francisco, CA"),
+      buildDedupeKey("sentry", "Software Engineer Intern", "Seattle, WA"),
+    );
   });
 });
