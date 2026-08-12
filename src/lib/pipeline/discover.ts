@@ -11,6 +11,7 @@ import { listUnscoredJobs } from "../jobs/repository";
 import { getScoringWeights } from "../settings";
 import { weightsHash } from "../scoring/weights";
 import { budgetStatus } from "../ai/budget";
+import { mapWithConcurrency, phaseDeadlines } from "../concurrency";
 import type { JobSource, Profile } from "../types";
 
 /**
@@ -35,12 +36,23 @@ export interface DiscoverOptions {
   maxEnrichments?: number;
   /** Max jobs to score per run. The only step that costs money. */
   maxScored?: number;
+  /**
+   * Total wall-clock budget, split across the three phases.
+   *
+   * Without this the board-fetching phase consumed the entire window and
+   * scoring never ran at all — a run would report 260 new jobs and 0 scored,
+   * which from the dashboard looks like discovery found nothing.
+   */
+  timeBudgetMs?: number;
+  concurrency?: { sources?: number; enrich?: number; score?: number };
   signal?: AbortSignal;
 }
 
 export interface DiscoverResult {
   sourcesRun: number;
   sourcesFailed: number;
+  /** Sources not reached before the phase deadline; they run next time. */
+  sourcesSkipped: number;
   postingsSeen: number;
   jobsNew: number;
   jobsUpdated: number;
@@ -57,15 +69,31 @@ export async function runDiscovery(
   options: DiscoverOptions = {},
 ): Promise<DiscoverResult> {
   const {
-    maxSources = 60,
-    maxEnrichments = 60,
-    maxScored = 40,
+    maxSources = 200,
+    maxEnrichments = 120,
+    maxScored = 80,
+    timeBudgetMs = 240_000,
     signal = new AbortController().signal,
   } = options;
+
+  const sourceConcurrency = options.concurrency?.sources ?? 8;
+  const enrichConcurrency = options.concurrency?.enrich ?? 8;
+  // Kept lower: these are billed model calls and a burst is the fastest way to
+  // trip a rate limit and fail half the batch.
+  const scoreConcurrency = options.concurrency?.score ?? 5;
+
+  // Sources get half the window, enrichment a fifth, scoring the rest. Unused
+  // time in an earlier phase rolls forward.
+  const deadlines = phaseDeadlines(timeBudgetMs, [50, 20, 30]);
+  const startedAt = Date.now();
+  const sourcesDeadline = deadlines[0] ?? startedAt + timeBudgetMs;
+  const enrichDeadline = deadlines[1] ?? startedAt + timeBudgetMs;
+  const scoreDeadline = deadlines[2] ?? startedAt + timeBudgetMs;
 
   const result: DiscoverResult = {
     sourcesRun: 0,
     sourcesFailed: 0,
+    sourcesSkipped: 0,
     postingsSeen: 0,
     jobsNew: 0,
     jobsUpdated: 0,
@@ -81,10 +109,29 @@ export async function runDiscovery(
   const { profile } = await loadProfileContext();
   const sources = await selectSources(options.sourceIds, maxSources);
 
-  for (const source of sources) {
-    if (signal.aborted) break;
-    const outcome = await runSource(source, profile, signal);
+  const outcomes = await mapWithConcurrency(
+    sources,
+    sourceConcurrency,
+    (source) => runSource(source, profile, signal),
+    { deadline: sourcesDeadline, signal },
+  );
 
+  for (const [index, settled] of outcomes.entries()) {
+    const source = sources[index];
+    if (settled.skipped === true) {
+      result.sourcesSkipped += 1;
+      continue;
+    }
+    if (!settled.ok || settled.value === undefined) {
+      result.sourcesFailed += 1;
+      result.errors.push({
+        source: source?.name ?? "unknown",
+        error: settled.error instanceof Error ? settled.error.message : String(settled.error),
+      });
+      continue;
+    }
+
+    const outcome = settled.value;
     result.sourcesRun += 1;
     result.postingsSeen += outcome.seen;
     result.jobsNew += outcome.created;
@@ -93,13 +140,24 @@ export async function runDiscovery(
 
     if (outcome.error !== null) {
       result.sourcesFailed += 1;
-      result.errors.push({ source: source.name, error: outcome.error });
+      result.errors.push({ source: source?.name ?? "unknown", error: outcome.error });
     }
   }
 
-  result.enriched = await enrichDescriptions(profile, maxEnrichments, signal);
+  result.enriched = await enrichDescriptions(
+    profile,
+    maxEnrichments,
+    signal,
+    enrichDeadline,
+    enrichConcurrency,
+  );
 
-  const scoring = await scorePending(maxScored, signal);
+  const scoring = await scorePending(
+    maxScored,
+    signal,
+    scoreDeadline,
+    scoreConcurrency,
+  );
   result.scored = scoring.scored;
   result.scoreErrors = scoring.errors;
   result.budgetStopped = scoring.budgetStopped;
@@ -256,6 +314,8 @@ async function enrichDescriptions(
   profile: Pick<Profile, "targetSeason" | "graduationDate">,
   limit: number,
   signal: AbortSignal,
+  deadline: number,
+  concurrency: number,
 ): Promise<number> {
   const jobs = await sql<
     {
@@ -278,14 +338,13 @@ async function enrichDescriptions(
     limit ${limit}
   `;
 
-  let enriched = 0;
-
-  for (const job of jobs) {
-    if (signal.aborted) break;
-    try {
+  const settled = await mapWithConcurrency(
+    jobs,
+    concurrency,
+    async (job) => {
       const fetched = await fetchPosting(job.url);
       const description = fetched.description;
-      if (description === null || description.length < 120) continue;
+      if (description === null || description.length < 120) return false;
 
       const sections = extractSections(description);
 
@@ -318,12 +377,14 @@ async function enrichDescriptions(
           updated_at = now()
         where id = ${job.id}
       `;
-      enriched += 1;
-    } catch {
-      // A blocked or dead posting page is not worth retrying this run; the
-      // job stays scoreable on its title alone.
-    }
-  }
+      return true;
+    },
+    { deadline, signal },
+  );
+
+  // A blocked or dead posting page is not worth retrying this run; the job
+  // stays scoreable on its title alone.
+  const enriched = settled.filter((s) => s.ok && s.value === true).length;
 
   return enriched;
 }
@@ -332,6 +393,8 @@ async function enrichDescriptions(
 async function scorePending(
   limit: number,
   signal: AbortSignal,
+  deadline: number,
+  concurrency: number,
 ): Promise<{ scored: number; errors: number; budgetStopped: boolean }> {
   const budget = await budgetStatus();
   if (!budget.unlimited && budget.remaining <= 0) {
@@ -345,12 +408,12 @@ async function scorePending(
 
   const pending = await listUnscoredJobs(weightsHash(weights), limit);
 
-  let scored = 0;
-  let errors = 0;
+  let budgetStopped = false;
 
-  for (const job of pending) {
-    if (signal.aborted) break;
-    try {
+  const settled = await mapWithConcurrency(
+    pending,
+    concurrency,
+    async (job) => {
       await scoreJob({
         job,
         companyName: job.companyName,
@@ -358,18 +421,28 @@ async function scorePending(
         context,
         weights,
       });
-      scored += 1;
-    } catch (error) {
-      if (error instanceof Error && error.name === "BudgetExceededError") {
-        return { scored, errors, budgetStopped: true };
-      }
-      errors += 1;
-      console.error(`[discover] failed to score job ${job.id}`, error);
+      return true;
+    },
+    { deadline, signal },
+  );
+
+  let scored = 0;
+  let errors = 0;
+  for (const item of settled) {
+    if (item.skipped === true) continue;
+    if (item.ok) { scored += 1; continue; }
+    if (item.error instanceof Error && item.error.name === "BudgetExceededError") {
+      budgetStopped = true;
+      continue;
     }
+    errors += 1;
+    console.error("[discover] failed to score a job", item.error);
   }
 
-  return { scored, errors, budgetStopped: false };
+  return { scored, errors, budgetStopped };
 }
+
+
 
 async function countPassing(): Promise<number> {
   const rows = await sql<{ count: string }[]>`
