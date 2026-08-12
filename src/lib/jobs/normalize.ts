@@ -102,15 +102,76 @@ const US_STATES = new Set([
   "sc", "sd", "tn", "tx", "ut", "vt", "va", "wa", "wv", "wi", "wy", "dc",
 ]);
 
-const NON_US_MARKERS = [
-  "canada", "toronto", "vancouver", "montreal", "ontario", "london", "uk",
-  "united kingdom", "ireland", "dublin", "germany", "berlin", "munich",
-  "france", "paris", "netherlands", "amsterdam", "switzerland", "zurich",
-  "israel", "tel aviv", "india", "bangalore", "bengaluru", "hyderabad",
-  "singapore", "japan", "tokyo", "china", "beijing", "shanghai", "australia",
-  "sydney", "brazil", "mexico", "poland", "warsaw", "spain", "madrid",
-  "sweden", "stockholm", "korea", "seoul", "taiwan", "hong kong",
+/** Full state names, for boards that spell them out ("Chicago, Illinois"). */
+const US_STATE_NAMES = new Set([
+  "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+  "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
+  "illinois", "indiana", "iowa", "kansas", "kentucky", "louisiana", "maine",
+  "maryland", "massachusetts", "michigan", "minnesota", "mississippi",
+  "missouri", "montana", "nebraska", "nevada", "new hampshire", "new jersey",
+  "new mexico", "new york", "north carolina", "north dakota", "ohio",
+  "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina",
+  "south dakota", "tennessee", "texas", "utah", "vermont", "virginia",
+  "washington", "west virginia", "wisconsin", "wyoming",
+  "district of columbia", "washington dc", "washington d.c.",
+]);
+
+/**
+ * US cities and shorthands that boards list without a state.
+ * "NYC" and "SF" alone are extremely common and were being discarded.
+ */
+const US_CITIES = [
+  "new york", "nyc", "brooklyn", "manhattan", "san francisco", "sf",
+  "bay area", "silicon valley", "palo alto", "mountain view", "menlo park",
+  "sunnyvale", "santa clara", "san jose", "oakland", "berkeley", "los angeles",
+  "la", "san diego", "seattle", "bellevue", "redmond", "portland", "austin",
+  "dallas", "houston", "chicago", "boston", "cambridge", "atlanta", "denver",
+  "boulder", "miami", "philadelphia", "pittsburgh", "detroit", "ann arbor",
+  "minneapolis", "milwaukee", "madison", "columbus", "nashville", "charlotte",
+  "raleigh", "durham", "phoenix", "tempe", "salt lake city", "las vegas",
+  "san antonio", "kansas city", "st louis", "saint louis", "indianapolis",
+  "cincinnati", "cleveland", "baltimore", "arlington", "reston", "mclean",
+  "washington", "dc", "newport beach", "irvine", "el segundo", "culver city",
+  "jersey city", "hoboken", "stamford", "greenwich", "princeton", "ardmore",
+  "plano", "irving", "richardson", "boca raton", "tampa", "orlando",
 ];
+
+/**
+ * Places that mean "not the United States".
+ *
+ * Matched on WORD BOUNDARIES, never as substrings. Plain `includes()` here was
+ * a real bug: "Mil-w-a-uk-ee" matched "uk", "India-napolis" matched "india",
+ * and legitimate US postings were silently discarded before ever being scored.
+ */
+const NON_US_MARKERS = [
+  "canada", "toronto", "vancouver", "montreal", "ontario", "quebec", "alberta",
+  "london", "uk", "u.k.", "united kingdom", "england", "scotland", "ireland",
+  "dublin", "germany", "berlin", "munich", "france", "paris", "netherlands",
+  "amsterdam", "switzerland", "zurich", "geneva", "israel", "tel aviv",
+  "india", "bangalore", "bengaluru", "hyderabad", "pune", "mumbai", "delhi",
+  "chennai", "singapore", "japan", "tokyo", "china", "beijing", "shanghai",
+  "shenzhen", "australia", "sydney", "melbourne", "brazil", "sao paulo",
+  "mexico", "poland", "warsaw", "krakow", "spain", "madrid", "barcelona",
+  "sweden", "stockholm", "norway", "oslo", "denmark", "copenhagen", "finland",
+  "helsinki", "korea", "seoul", "taiwan", "taipei", "hong kong", "vietnam",
+  "philippines", "manila", "indonesia", "jakarta", "thailand", "bangkok",
+  "portugal", "lisbon", "italy", "milan", "rome", "austria", "vienna",
+  "belgium", "brussels", "czech", "prague", "romania", "bucharest",
+  "hungary", "budapest", "turkey", "istanbul", "uae", "dubai", "abu dhabi",
+  "south africa", "nigeria", "kenya", "egypt", "argentina", "chile",
+  "colombia", "peru", "costa rica", "new zealand", "auckland",
+];
+
+/** Word-boundary matcher, built once. */
+const NON_US_PATTERN = new RegExp(
+  `(^|[^a-z])(${NON_US_MARKERS.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})([^a-z]|$)`,
+  "i",
+);
+
+const US_CITY_PATTERN = new RegExp(
+  `(^|[^a-z])(${US_CITIES.map((c) => c.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})([^a-z]|$)`,
+  "i",
+);
 
 /**
  * Split a board's free-form location string into individual locations.
@@ -125,20 +186,39 @@ export function parseLocations(raw: string | null | undefined): string[] {
     .slice(0, 12);
 }
 
-/** True when any parsed location looks like it is inside the United States. */
+/**
+ * True when any parsed location looks like it is inside the United States.
+ *
+ * Biased toward inclusion: a job wrongly excluded here is invisible forever,
+ * while a job wrongly included costs about a fifth of a cent to score and gets
+ * marked down for location anyway. Only an explicit foreign marker excludes.
+ */
 export function isUnitedStates(locations: string[]): boolean {
   if (locations.length === 0) return false;
 
   for (const location of locations) {
-    const lower = location.toLowerCase();
+    const lower = location.toLowerCase().trim();
+    if (lower.length === 0) continue;
 
-    if (NON_US_MARKERS.some((marker) => lower.includes(marker))) continue;
-    if (/\b(usa|u\.s\.|united states|us)\b/.test(lower)) return true;
+    // An explicit foreign place disqualifies this one location, not the job —
+    // "London; Chicago" is still a US opportunity.
+    if (NON_US_PATTERN.test(lower)) continue;
+
+    if (/(^|[^a-z])(usa|u\.s\.a?|united states|us)([^a-z]|$)/i.test(lower)) return true;
     if (REMOTE_PATTERN.test(lower)) return true;
 
     // "Ann Arbor, MI" / "New York, NY 10001"
-    const stateMatch = /,\s*([a-z]{2})\b/.exec(lower);
-    if (stateMatch?.[1] !== undefined && US_STATES.has(stateMatch[1])) return true;
+    for (const match of lower.matchAll(/(?:^|,)\s*([a-z]{2})(?![a-z])/g)) {
+      if (match[1] !== undefined && US_STATES.has(match[1])) return true;
+    }
+
+    // "Chicago, Illinois" / a bare "Texas"
+    for (const part of lower.split(/[,;]/)) {
+      if (US_STATE_NAMES.has(part.trim())) return true;
+    }
+
+    // "NYC" / "SF" / "Bay Area" — no state given at all.
+    if (US_CITY_PATTERN.test(lower)) return true;
   }
   return false;
 }
