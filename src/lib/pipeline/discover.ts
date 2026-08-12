@@ -107,7 +107,10 @@ export async function runDiscovery(
   };
 
   const { profile } = await loadProfileContext();
-  const sources = await selectSources(options.sourceIds, maxSources);
+  // maxSources: 0 skips board polling entirely, which is how the backlog of
+  // already-discovered jobs gets enriched and scored without re-fetching.
+  const sources =
+    maxSources <= 0 ? [] : await selectSources(options.sourceIds, maxSources);
 
   const outcomes = await mapWithConcurrency(
     sources,
