@@ -31,10 +31,15 @@ create table ai_usage (
   error             text
 );
 
+-- The budget guard filters with `at >= date_trunc('month', now())`, which is a
+-- plain range scan this index already serves.
+--
+-- Note for future edits: an expression index on date_trunc('month', at) is not
+-- possible here. date_trunc() over timestamptz is STABLE rather than IMMUTABLE
+-- because its result depends on the session TimeZone, and Postgres rejects it
+-- in an index expression (error 42P17).
 create index ai_usage_at_idx on ai_usage (at desc);
 create index ai_usage_purpose_idx on ai_usage (purpose, at desc);
--- The budget guard sums cost over the current calendar month.
-create index ai_usage_month_idx on ai_usage (date_trunc('month', at));
 
 -- Default scoring weights. Components sum to 100 and are user-editable from
 -- Settings; the shape is validated by ScoringWeightsSchema in
