@@ -16,6 +16,7 @@
     "db:migrate": "node scripts/migrate.ts",
     "db:seed": "node scripts/seed.ts",
     "db:refilter": "node --import ./test/register.mjs scripts/refilter.ts",
+    "db:redupe": "node --import ./test/register.mjs scripts/redupe.ts",
     "discover": "node scripts/discover.ts",
     "apply": "node scripts/apply.ts"
   },
