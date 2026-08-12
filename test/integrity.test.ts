@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
+  checkCompleteness,
   checkIntegrity,
   extractNumbers,
   technologyLikeTokens,
@@ -278,5 +279,36 @@ describe("technologyLikeTokens", () => {
 
   test("ignores the leading word of a bullet", () => {
     assert.deepEqual(technologyLikeTokens("Designed a pipeline"), []);
+  });
+});
+
+describe("checkCompleteness", () => {
+  test("rejects a resume with no experience at all", () => {
+    // The real failure this exists for: a tailoring call returned zero
+    // selections, so the document was empty. It contained no fabrication, so
+    // the integrity checks passed it and it was marked ready to send.
+    const document = documentWith(BULLET.canonicalText);
+    document.sections = [];
+
+    assert.equal(checkIntegrity({ document, bullets: [BULLET], experiences: [EXPERIENCE], skills: SKILLS }).ok, true);
+    const completeness = checkCompleteness(document);
+    assert.equal(completeness.ok, false);
+    assert.match(completeness.issues.join(" "), /no experience entries/);
+  });
+
+  test("rejects a resume too thin to send", () => {
+    const report = checkCompleteness(documentWith(BULLET.canonicalText));
+    assert.equal(report.ok, false);
+    assert.match(report.issues.join(" "), /too thin/);
+  });
+
+  test("accepts a resume with enough substance", () => {
+    const document = documentWith(BULLET.canonicalText);
+    document.sections[0]!.entries[0]!.bullets = [
+      { bulletId: 10, text: "a", rewritten: false },
+      { bulletId: 11, text: "b", rewritten: false },
+      { bulletId: 12, text: "c", rewritten: false },
+    ];
+    assert.equal(checkCompleteness(document).ok, true);
   });
 });
