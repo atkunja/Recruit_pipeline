@@ -15,6 +15,7 @@
     "db:check": "node scripts/check-db.ts",
     "db:migrate": "node scripts/migrate.ts",
     "db:seed": "node scripts/seed.ts",
+    "db:refilter": "node --import ./test/register.mjs scripts/refilter.ts",
     "discover": "node scripts/discover.ts",
     "apply": "node scripts/apply.ts"
   },
