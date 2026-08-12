@@ -7,8 +7,11 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
  * Two exceptions, both of which authenticate themselves:
  *   /login and /api/auth/*  — where the session is established
  *   /api/cron/*             — authenticated by CRON_SECRET bearer token
+ *
+ * Named `proxy` in `src/proxy.ts`: Next 16 renamed the middleware file
+ * convention, and the old name logs a deprecation warning on every boot.
  */
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   const isPublic =
