@@ -48,19 +48,32 @@ const NOT_INTERN_MARKERS =
   /\b(new grad(uate)?|entry[- ]level full[- ]time|full[- ]time only|experienced hire|staff engineer|senior engineer|principal engineer|manager|director|head of)\b/i;
 
 /**
- * Technical role keywords. Broad on purpose: the goal is to exclude marketing
- * and finance internships, not to guess which flavour of engineering fits.
+ * Technical role keywords.
+ *
+ * Deliberately permissive. The prefilter's job is to throw out what is
+ * *certainly* wrong — marketing, HR, legal — not to guess which flavour of
+ * technical work fits; that is the scorer's job, and it costs about a fifth of
+ * a cent per posting.
+ *
+ * The narrow version of this list rejected "Quantitative Trader Intern",
+ * "Quant Trading Intern", "Quantitative Researcher Intern" and "AI Research
+ * Scientist Intern" — all roles at exactly the trading and AI firms being
+ * targeted — because it matched "quantitative trading" but not "trader".
  */
 const TECHNICAL_MARKERS = [
-  "software", "swe", "backend", "back end", "back-end", "frontend", "front end",
-  "full stack", "fullstack", "infrastructure", "infra", "platform", "cloud",
-  "distributed systems", "developer", "devops", "site reliability", "sre",
-  "systems", "compiler", "kernel", "embedded software", "data engineer",
-  "machine learning", "ml engineer", "ai engineer", "computer vision",
-  "autonomy", "robotics software", "perception", "controls software",
-  "quantitative developer", "quant developer", "quantitative trading",
-  "trading systems", "security engineer", "network engineer", "database",
-  "engineering", "engineer", "programmer", "computer science",
+  "software", "swe", "sde", "backend", "back end", "back-end", "frontend",
+  "front end", "front-end", "full stack", "fullstack", "full-stack",
+  "infrastructure", "infra", "platform", "cloud", "distributed", "developer",
+  "development", "devops", "site reliability", "sre", "systems", "system",
+  "compiler", "kernel", "embedded", "firmware", "data engineer",
+  "data engineering", "machine learning", "ml", "ai", "artificial intelligence",
+  "deep learning", "computer vision", "nlp", "autonomy", "autonomous",
+  "robotics", "perception", "controls", "quant", "quantitative", "trader",
+  "trading", "algorithmic", "security", "network", "database", "engineering",
+  "engineer", "programmer", "programming", "computer science", "computer",
+  "technology", "technical", "research scientist", "applied scientist",
+  "data scien", "data analytics", "analytics engineer", "simulation",
+  "graphics", "gpu", "hardware engineer", "silicon", "fpga", "asic",
 ];
 
 /** Roles that match "engineer" but are not software roles. */
