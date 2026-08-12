@@ -228,10 +228,14 @@ async function runSource(
     });
     outcome.seen = postings.length;
 
-    for (const posting of postings) {
-      if (signal.aborted) break;
-      try {
-        const ingested = await ingestJob(
+    // Ingest concurrently. Each posting costs several database round-trips, and
+    // doing hundreds of them one at a time is what made a single large board
+    // (Simplify alone returns 200+) consume most of a run's window.
+    const ingested = await mapWithConcurrency(
+      postings,
+      10,
+      (posting) =>
+        ingestJob(
           {
             companyName: posting.companyName,
             companyWebsite: posting.companyWebsite,
@@ -248,18 +252,21 @@ async function runSource(
             raw: posting.raw,
           },
           profile,
-        );
+        ),
+      { signal },
+    );
 
-        if (ingested.isDuplicate) outcome.duplicates += 1;
-        else if (ingested.isNew) outcome.created += 1;
-        else if (ingested.isUpdated) outcome.updated += 1;
-      } catch (error) {
+    for (const settled of ingested) {
+      if (!settled.ok || settled.value === undefined) {
         // One malformed posting must not abandon the rest of the board.
-        console.error(
-          `[discover] ${source.name}: failed to ingest ${posting.url}`,
-          error,
-        );
+        if (settled.skipped !== true) {
+          console.error(`[discover] ${source.name}: failed to ingest a posting`, settled.error);
+        }
+        continue;
       }
+      if (settled.value.isDuplicate) outcome.duplicates += 1;
+      else if (settled.value.isNew) outcome.created += 1;
+      else if (settled.value.isUpdated) outcome.updated += 1;
     }
   } catch (error) {
     outcome.error = error instanceof Error ? error.message : String(error);
