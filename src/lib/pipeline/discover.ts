@@ -4,6 +4,7 @@ import { ingestJob } from "../jobs/ingest";
 import { fetchPosting } from "../jobs/fetch-posting";
 import { hashText, extractSections } from "../jobs/normalize";
 import { prefilter } from "../jobs/prefilter";
+import { parseCompensation } from "../jobs/compensation";
 import { getAdapter, isTitleInteresting } from "../sources/registry";
 import { loadProfileContext } from "../profile/context";
 import { scoreJob } from "../scoring/score";
@@ -376,9 +377,18 @@ async function enrichDescriptions(
         },
       );
 
+      const pay = parseCompensation(description);
+
       await sql`
         update jobs set
           description = ${description},
+          pay_min           = coalesce(${pay?.min ?? null}, pay_min),
+          pay_max           = coalesce(${pay?.max ?? null}, pay_max),
+          pay_period        = coalesce(${pay?.period ?? null}, pay_period),
+          pay_monthly_min   = coalesce(${pay?.monthlyMin ?? null}, pay_monthly_min),
+          pay_monthly_max   = coalesce(${pay?.monthlyMax ?? null}, pay_monthly_max),
+          pay_raw           = coalesce(${pay?.raw ?? null}, pay_raw),
+          pay_source        = coalesce(${pay === null ? null : "text"}, pay_source),
           requirements = ${sections.requirements},
           preferred_qualifications = ${sections.preferred},
           description_hash = ${hashText(description)},

@@ -2,6 +2,7 @@ import "server-only";
 import { json, sql } from "../db";
 import { logActivity } from "../activity";
 import { prefilter } from "./prefilter";
+import { parseCompensation } from "./compensation";
 import { upsertCompany } from "./repository";
 import {
   buildDedupeKey,
@@ -79,6 +80,13 @@ export async function ingestJob(
     ? extractSections(description)
     : { requirements: null, preferred: null };
 
+  // Pay-transparency laws mean most US postings state a range in the body, so
+  // the description is usually a better source than the ATS field — but the
+  // structured field, when present, is unambiguous, so it wins.
+  const pay =
+    parseCompensation(input.compensation) ?? parseCompensation(description);
+  const paySource = pay === null ? null : parseCompensation(input.compensation) !== null ? "ats" : "text";
+
   // Applying twice to one posting is the mistake this system exists to prevent,
   // so the check runs before the row is even written.
   const alreadyApplied = await hasApplicationForDedupeKey(dedupeKey);
@@ -111,7 +119,9 @@ export async function ingestJob(
       company_id, source_kind, source_id, source_job_id, title, normalized_title,
       url, location_raw, locations, is_remote, description, requirements,
       preferred_qualifications, compensation, season, posted_at,
-      description_hash, dedupe_key, prefilter, prefilter_reasons, raw
+      description_hash, dedupe_key, prefilter, prefilter_reasons, raw,
+      pay_min, pay_max, pay_period, pay_currency, pay_monthly_min,
+      pay_monthly_max, pay_raw, pay_source, pay_period_stated
     ) values (
       ${company.id}, ${input.sourceKind}, ${input.sourceId ?? null},
       ${input.sourceJobId ?? null}, ${input.title}, ${normalizedTitle},
@@ -119,7 +129,11 @@ export async function ingestJob(
       ${description}, ${sections.requirements}, ${sections.preferred},
       ${input.compensation ?? null}, ${season}, ${input.postedAt ?? null},
       ${descriptionHash}, ${dedupeKey}, ${verdict.verdict},
-      ${verdict.reasons}, ${input.raw === undefined ? null : sql.json(json(input.raw))}
+      ${verdict.reasons}, ${input.raw === undefined ? null : sql.json(json(input.raw))},
+      ${pay?.min ?? null}, ${pay?.max ?? null}, ${pay?.period ?? null},
+      ${pay?.currency ?? null}, ${pay?.monthlyMin ?? null},
+      ${pay?.monthlyMax ?? null}, ${pay?.raw ?? null}, ${paySource},
+      ${pay?.periodStated ?? false}
     )
     on conflict (url) do update set
       title            = excluded.title,
@@ -142,6 +156,16 @@ export async function ingestJob(
       end,
       prefilter         = excluded.prefilter,
       prefilter_reasons = excluded.prefilter_reasons,
+      -- Keep a figure we already have if this run didn't find one.
+      pay_min           = coalesce(excluded.pay_min, jobs.pay_min),
+      pay_max           = coalesce(excluded.pay_max, jobs.pay_max),
+      pay_period        = coalesce(excluded.pay_period, jobs.pay_period),
+      pay_currency      = coalesce(excluded.pay_currency, jobs.pay_currency),
+      pay_monthly_min   = coalesce(excluded.pay_monthly_min, jobs.pay_monthly_min),
+      pay_monthly_max   = coalesce(excluded.pay_monthly_max, jobs.pay_monthly_max),
+      pay_raw           = coalesce(excluded.pay_raw, jobs.pay_raw),
+      pay_source        = coalesce(excluded.pay_source, jobs.pay_source),
+      pay_period_stated = excluded.pay_period_stated or jobs.pay_period_stated,
       is_active         = true,
       updated_at        = now()
     returning *
