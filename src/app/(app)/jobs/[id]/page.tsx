@@ -16,6 +16,7 @@ import {
 import { ResumePanel } from "./resume-panel";
 import { JobActions } from "./actions";
 import { ContactsPanel } from "./contacts-panel";
+import { ScoreButton } from "./score-button";
 import type { JobScore, ScoreComponentKey } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -172,7 +173,11 @@ export default async function JobDetailPage({
             </Link>
           )}
 
-          {score !== null && <ScoreDetails score={score} />}
+          {score === null ? (
+            <ScoreButton jobId={job.id} />
+          ) : (
+            <ScoreDetails score={score} />
+          )}
 
           <ContactsPanel
             jobId={job.id}
