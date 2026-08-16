@@ -63,7 +63,7 @@ export const env = {
     return read("OPENAI_BASE_URL");
   },
   get modelCheap(): string {
-    return optional("OPENAI_MODEL_CHEAP", "gpt-4.1-mini");
+    return optional("OPENAI_MODEL_CHEAP", "gpt-4.1-nano");
   },
   get modelStrong(): string {
     return optional("OPENAI_MODEL_STRONG", "gpt-4.1");

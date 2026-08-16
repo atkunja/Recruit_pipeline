@@ -26,8 +26,20 @@ import type { Job, JobScore, ScoreComponents } from "../types";
  * an unchanged listing costs nothing.
  */
 
+/**
+ * Numbers, tolerating a model that quotes them.
+ *
+ * Smaller models return `"1"` where larger ones return `1`. That is a
+ * formatting difference, not a wrong answer, and rejecting it wasted three
+ * retries and then failed the whole score.
+ */
+const Numeric = z.union([z.number(), z.string()]).transform((value) => {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+});
+
 const ComponentSchema = z.object({
-  score: z.number(),
+  score: Numeric,
   reason: z.string(),
 });
 
@@ -39,7 +51,7 @@ const ScoreResponseSchema = z.object({
   location: ComponentSchema,
   eligibility: ComponentSchema,
   summary: z.string(),
-  strongestExperienceIds: z.array(z.number()).default([]),
+  strongestExperienceIds: z.array(Numeric).default([]),
   strongestSkills: z.array(z.string()).default([]),
   missingRequirements: z.array(z.string()).default([]),
   concerns: z.array(z.string()).default([]),
@@ -156,9 +168,11 @@ function buildUserPrompt(input: ScoreJobInput): string {
     (key) => `  ${key}: max ${weights[key]} points`,
   ).join("\n");
 
-  // Long descriptions are mostly boilerplate after the first few thousand
-  // characters, and every character is billed on every job.
-  const description = (job.description ?? "").slice(0, 6000);
+  // Descriptions are front-loaded: the role and requirements come first, and
+  // the tail is benefits, EEO boilerplate and company history. Input tokens
+  // were about two-thirds of the cost of a score, so this is the single
+  // biggest lever on it.
+  const description = (job.description ?? "").slice(0, 2200);
 
   return [
     "CANDIDATE RECORD (the only facts you may use):",
@@ -172,9 +186,9 @@ function buildUserPrompt(input: ScoreJobInput): string {
     "",
     "Description:",
     description || "(no description available)",
-    job.requirements ? `\nRequirements:\n${job.requirements.slice(0, 2000)}` : "",
+    job.requirements ? `\nRequirements:\n${job.requirements.slice(0, 1200)}` : "",
     job.preferredQualifications
-      ? `\nPreferred:\n${job.preferredQualifications.slice(0, 1500)}`
+      ? `\nPreferred:\n${job.preferredQualifications.slice(0, 800)}`
       : "",
     "",
     "COMPONENT MAXIMA:",
