@@ -84,7 +84,7 @@ export async function listDiscoverJobs(
     minMonthlyPay = null,
     includeIgnored = false,
     includeScored = "all",
-    sort = "score",
+    sort = "posted",
     limit = 100,
     offset = 0,
   } = filters;
@@ -107,6 +107,8 @@ export async function listDiscoverJobs(
       c.preference    as company_preference,
       s.total         as score,
       s.summary       as score_summary,
+      (coalesce(j.posted_at, j.discovered_at) > now() - interval '3 days')
+                      as is_fresh,
       j.pay_raw       as pay_label,
       j.pay_monthly_max as pay_monthly_max,
       coalesce(s.strongest_skills, '{}')      as strongest_skills,
@@ -158,7 +160,9 @@ export async function listDiscoverJobs(
     order by
       case when ${sort} = 'score' then s.total end desc nulls last,
       case when ${sort} = 'pay' then j.pay_monthly_max end desc nulls last,
-      case when ${sort} = 'posted' then j.posted_at end desc nulls last,
+      -- Newest first. coalesce so a source that omits posted_at still ranks
+      -- by when we found it rather than sinking to the bottom.
+      case when ${sort} = 'posted' then coalesce(j.posted_at, j.discovered_at) end desc nulls last,
       j.discovered_at desc
     limit ${limit} offset ${offset}
   `;

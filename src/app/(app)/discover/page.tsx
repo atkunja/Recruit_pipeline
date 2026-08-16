@@ -64,12 +64,15 @@ export default async function DiscoverPage({
     status,
     includeIgnored: params.ignored === "1",
     minMonthlyPay: params.minPay ? Number(params.minPay) : null,
+    // Newest first by default. Internship applications are read in the order
+    // they arrive and popular postings close fast, so freshness beats fit as
+    // the default ordering — the fit score is one click away.
     sort:
       params.sort === "discovered" ||
-      params.sort === "posted" ||
+      params.sort === "score" ||
       params.sort === "pay"
         ? params.sort
-        : "score",
+        : "posted",
     // Fetch one extra to know whether another page exists without a count query.
     limit: shown + 1,
   };

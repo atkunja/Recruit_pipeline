@@ -142,14 +142,14 @@ export function DiscoverFiltersBar({
       <label className="flex items-center gap-1.5 text-faint">
         <span className="eyebrow">Sort</span>
         <select
-          value={params.get("sort") ?? "score"}
+          value={params.get("sort") ?? "posted"}
           onChange={(event) => update("sort", event.target.value)}
           className={inputClass}
         >
-          <option value="score">Fit score</option>
-          <option value="pay">Pay (highest)</option>
+          <option value="posted">Newest posted</option>
+          <option value="score">Best fit</option>
+          <option value="pay">Highest pay</option>
           <option value="discovered">Recently found</option>
-          <option value="posted">Recently posted</option>
         </select>
       </label>
 
