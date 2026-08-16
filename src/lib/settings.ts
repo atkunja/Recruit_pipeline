@@ -30,6 +30,28 @@ export async function setScoringWeights(weights: ScoringWeights): Promise<void> 
   await setSetting("scoring_weights", weights);
 }
 
+/**
+ * When jobs get scored.
+ *
+ *   auto      — every discovery run scores what it finds (costs money on a schedule)
+ *   on_demand — nothing is scored until you ask for it on a job (the default)
+ *   off       — scoring is disabled entirely
+ *
+ * Defaults to on_demand: Discover sorts by newest and shows everything found,
+ * so a score is useful when comparing a shortlist, not for every posting that
+ * arrives.
+ */
+export type ScoringMode = "auto" | "on_demand" | "off";
+
+export async function getScoringMode(): Promise<ScoringMode> {
+  const value = await getSetting<string>("scoring_mode", "on_demand");
+  return value === "auto" || value === "off" ? value : "on_demand";
+}
+
+export async function setScoringMode(mode: ScoringMode): Promise<void> {
+  await setSetting("scoring_mode", mode);
+}
+
 /** Feature flags. Both default to false and must be turned on deliberately. */
 export async function isAutoSubmitEnabled(): Promise<boolean> {
   return getSetting<boolean>("auto_submit_enabled", false);

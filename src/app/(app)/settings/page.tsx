@@ -1,16 +1,17 @@
 import { sql } from "@/lib/db";
-import { getScoringWeights } from "@/lib/settings";
+import { getScoringMode, getScoringWeights } from "@/lib/settings";
 import { budgetStatus } from "@/lib/ai/budget";
 import { loadProfileContext } from "@/lib/profile/context";
 import { PageHeader, Panel, Stat } from "@/components/ui";
 import { WeightsEditor } from "./weights-editor";
 import { SourcesTable } from "./sources-table";
+import { ScoringModeControl } from "./scoring-mode";
 import type { JobSource } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [weights, budget, sources, spendByPurpose] = await Promise.all([
+  const [weights, budget, sources, spendByPurpose, scoringMode, scoreCounts] = await Promise.all([
     getScoringWeights(),
     budgetStatus(),
     sql<JobSource[]>`
@@ -22,6 +23,15 @@ export default async function SettingsPage() {
       where at >= date_trunc('month', now())
       group by purpose
       order by sum(cost_usd) desc
+    `,
+    getScoringMode(),
+    sql<{ scored: number; unscored: number }[]>`
+      select
+        (select count(*)::int from job_scores) as scored,
+        (select count(*)::int from jobs j
+         where j.is_active and j.canonical_job_id is null and not j.is_ignored
+           and not exists (select 1 from job_scores s where s.job_id = j.id)
+        ) as unscored
     `,
   ]);
 
@@ -83,6 +93,16 @@ export default async function SettingsPage() {
             tailoring return an error instead of spending more. Change it with{" "}
             <code>OPENAI_MONTHLY_BUDGET_USD</code>.
           </p>
+        </section>
+
+        <section>
+          <h2 className="eyebrow mb-2">Scoring cost</h2>
+          <ScoringModeControl
+            mode={scoringMode}
+            monthlySpend={budget.spent}
+            scoredCount={scoreCounts[0]?.scored ?? 0}
+            unscoredCount={scoreCounts[0]?.unscored ?? 0}
+          />
         </section>
 
         <section>

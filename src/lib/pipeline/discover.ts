@@ -9,7 +9,7 @@ import { getAdapter, isTitleInteresting } from "../sources/registry";
 import { loadProfileContext } from "../profile/context";
 import { scoreJob } from "../scoring/score";
 import { listUnscoredJobs } from "../jobs/repository";
-import { getScoringWeights } from "../settings";
+import { getScoringMode, getScoringWeights } from "../settings";
 import { weightsHash } from "../scoring/weights";
 import { budgetStatus } from "../ai/budget";
 import { mapWithConcurrency, phaseDeadlines } from "../concurrency";
@@ -63,6 +63,8 @@ export interface DiscoverResult {
   scored: number;
   scoreErrors: number;
   budgetStopped: boolean;
+  /** Set when scoring did not run because of the configured mode. */
+  scoringSkipped?: "on_demand" | "off";
   errors: { source: string; error: string }[];
 }
 
@@ -156,15 +158,22 @@ export async function runDiscovery(
     enrichConcurrency,
   );
 
-  const scoring = await scorePending(
-    maxScored,
-    signal,
-    scoreDeadline,
-    scoreConcurrency,
-  );
-  result.scored = scoring.scored;
-  result.scoreErrors = scoring.errors;
-  result.budgetStopped = scoring.budgetStopped;
+  // Scoring is the only step that costs money, so it only runs when the user
+  // has asked for it to happen automatically.
+  const mode = await getScoringMode();
+  if (mode === "auto") {
+    const scoring = await scorePending(
+      maxScored,
+      signal,
+      scoreDeadline,
+      scoreConcurrency,
+    );
+    result.scored = scoring.scored;
+    result.scoreErrors = scoring.errors;
+    result.budgetStopped = scoring.budgetStopped;
+  } else {
+    result.scoringSkipped = mode;
+  }
 
   result.passedPrefilter = await countPassing();
 
