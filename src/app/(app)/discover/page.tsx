@@ -36,14 +36,17 @@ export default async function DiscoverPage({
     ? Math.min(Math.max(requested, PAGE_SIZE), 500)
     : PAGE_SIZE;
 
-  // Default to the configured display floor rather than showing everything —
-  // the whole point of scoring is to not read 400 postings a day.
+  // Show everything found by default.
+  //
+  // This used to default to the configured score floor, which meant scoring
+  // became a gate on seeing your own data: 433 jobs discovered, 160 visible,
+  // and the 185 that had not been scored yet were invisible entirely. Scoring
+  // should order the feed, not hide most of it. The floor is still one click
+  // away in the filter bar.
   const minScore =
-    params.minScore === undefined
-      ? weights.minimumDisplayScore
-      : params.minScore === ""
-        ? null
-        : Number(params.minScore);
+    params.minScore === undefined || params.minScore === ""
+      ? null
+      : Number(params.minScore);
 
   const status = APPLICATION_STATUSES.includes(params.status as ApplicationStatus)
     ? (params.status as ApplicationStatus)
@@ -75,6 +78,7 @@ export default async function DiscoverPage({
   const newToday = jobs.filter(
     (job) => new Date(job.discoveredAt) >= startOfToday,
   ).length;
+  const unscored = jobs.filter((job) => job.score === null).length;
 
   return (
     <>
@@ -82,9 +86,14 @@ export default async function DiscoverPage({
         title="Discover"
         subtitle={
           <>
-            <span className="font-medium text-text">{jobs.length}</span> matching
-            {" "}
-            {jobs.length === 1 ? "opportunity" : "opportunities"}
+            showing <span className="font-medium text-text">{jobs.length}</span>
+            {hasMore && " (more below)"}
+            {unscored > 0 && (
+              <>
+                {" · "}
+                <span className="text-muted">{unscored} not scored yet</span>
+              </>
+            )}
             {newToday > 0 && (
               <>
                 {" · "}
@@ -108,7 +117,7 @@ export default async function DiscoverPage({
       {jobs.length === 0 ? (
         <EmptyState
           title="Nothing here yet"
-          hint="Either discovery hasn't run, or your filters are too tight. Lower the minimum score, or run discovery from Settings → Sources."
+          hint="Either discovery hasn't run yet, or your filters are too tight. Run discovery from Settings → Sources."
           action={
             <Link
               href="/discover?minScore="

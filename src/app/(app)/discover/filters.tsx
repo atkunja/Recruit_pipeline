@@ -12,6 +12,7 @@ import { STATUS_LABELS } from "@/components/ui";
 export function DiscoverFiltersBar({
   defaultMinScore,
 }: {
+  /** The configured floor, offered as a one-click filter rather than a default. */
   defaultMinScore: number;
 }) {
   const router = useRouter();
@@ -41,7 +42,7 @@ export function DiscoverFiltersBar({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const minScore = params.get("minScore") ?? String(defaultMinScore);
+  const minScore = params.get("minScore") ?? "";
   const inputClass =
     "rounded-md border border-border bg-surface px-2 py-1 text-text outline-none transition-colors focus:border-accent";
 
@@ -67,6 +68,9 @@ export function DiscoverFiltersBar({
           className={inputClass}
         >
           <option value="">Any</option>
+          <option value={String(defaultMinScore)}>
+            {defaultMinScore}+ (your floor)
+          </option>
           <option value="60">60+</option>
           <option value="70">70+</option>
           <option value="80">80+</option>
