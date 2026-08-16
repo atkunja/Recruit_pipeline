@@ -17,6 +17,7 @@
     "db:seed": "node scripts/seed.ts",
     "db:refilter": "node --import ./test/register.mjs scripts/refilter.ts",
     "db:redupe": "node --import ./test/register.mjs scripts/redupe.ts",
+    "db:pay": "node --import ./test/register.mjs scripts/backfill-pay.ts",
     "discover": "node scripts/discover.ts",
     "apply": "node scripts/apply.ts"
   },
