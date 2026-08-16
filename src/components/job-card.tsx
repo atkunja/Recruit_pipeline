@@ -15,6 +15,11 @@ import type { JobListItem } from "@/lib/types";
  * the client — carrying an id and two booleans rather than an entire job.
  */
 export function JobCard({ job }: { job: JobListItem }) {
+  // Freshness is computed by the database, not here: calling Date.now() during
+  // render is impure and gives every row a slightly different "now".
+  const postedAt = job.postedAt ?? job.discoveredAt;
+  const isFresh = job.isFresh;
+
   return (
     <article className="panel row-hover group px-3 py-2.5">
       <div className="flex items-start gap-3">
@@ -29,6 +34,14 @@ export function JobCard({ job }: { job: JobListItem }) {
               {job.companyName}
             </Link>
             <span className="truncate text-muted">{job.title}</span>
+            {isFresh && (
+              <span
+                className="shrink-0 rounded bg-success-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-success"
+                title="Posted in the last three days"
+              >
+                New
+              </span>
+            )}
           </div>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-faint">
@@ -38,10 +51,9 @@ export function JobCard({ job }: { job: JobListItem }) {
             )}
             {job.isRemote && <Tag tone="muted">Remote</Tag>}
             {job.season !== null && <span>· {job.season}</span>}
-            <span>· found {relativeTime(job.discoveredAt)}</span>
-            {job.postedAt !== null && (
-              <span>· posted {relativeTime(job.postedAt)}</span>
-            )}
+            <span className={isFresh ? "text-success" : undefined}>
+              · posted {relativeTime(postedAt)}
+            </span>
             <span>· {job.sourceKind}</span>
             {job.duplicateCount > 0 && (
               <span title="Also listed on other boards">

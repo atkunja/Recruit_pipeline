@@ -458,6 +458,8 @@ export interface JobListItem {
   companyPreference: number;
   score: number | null;
   scoreSummary: string | null;
+  /** Posted recently enough to be worth applying to now. Computed server-side. */
+  isFresh: boolean;
   /** Display form, e.g. "$45–65/hr". Null when the posting never says. */
   payLabel: string | null;
   /** Monthly equivalent, for sorting across hourly/weekly/annual figures. */

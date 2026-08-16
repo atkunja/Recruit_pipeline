@@ -143,6 +143,8 @@ export async function listApplications(
       c.preference as company_preference,
       s.total      as score,
       s.summary    as score_summary,
+      (coalesce(j.posted_at, j.discovered_at) > now() - interval '3 days')
+                   as is_fresh,
       j.pay_raw    as pay_label,
       j.pay_monthly_max as pay_monthly_max,
       coalesce(s.strongest_skills, '{}')     as strongest_skills,
