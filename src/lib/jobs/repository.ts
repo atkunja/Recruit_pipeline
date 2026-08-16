@@ -58,7 +58,9 @@ export interface DiscoverFilters {
   status?: ApplicationStatus | "none" | null;
   includeIgnored?: boolean;
   includeScored?: "all" | "scored" | "unscored";
-  sort?: "score" | "discovered" | "posted";
+  sort?: "score" | "discovered" | "posted" | "pay";
+  /** Only jobs whose monthly-equivalent pay is at least this. */
+  minMonthlyPay?: number | null;
   limit?: number;
   offset?: number;
 }
@@ -79,6 +81,7 @@ export async function listDiscoverJobs(
     location = null,
     discoveredSince = null,
     status = null,
+    minMonthlyPay = null,
     includeIgnored = false,
     includeScored = "all",
     sort = "score",
@@ -104,6 +107,8 @@ export async function listDiscoverJobs(
       c.preference    as company_preference,
       s.total         as score,
       s.summary       as score_summary,
+      j.pay_raw       as pay_label,
+      j.pay_monthly_max as pay_monthly_max,
       coalesce(s.strongest_skills, '{}')      as strongest_skills,
       coalesce(s.missing_requirements, '{}')  as missing_requirements,
       a.id            as application_id,
@@ -139,6 +144,7 @@ export async function listDiscoverJobs(
         or j.location_raw ilike ${"%" + (location ?? "") + "%"}
       )
       and (${discoveredSince}::timestamptz is null or j.discovered_at >= ${discoveredSince})
+      and (${minMonthlyPay}::int is null or j.pay_monthly_max >= ${minMonthlyPay})
       and (
         ${status}::text is null
         or (${status} = 'none' and a.id is null)
@@ -151,6 +157,7 @@ export async function listDiscoverJobs(
       )
     order by
       case when ${sort} = 'score' then s.total end desc nulls last,
+      case when ${sort} = 'pay' then j.pay_monthly_max end desc nulls last,
       case when ${sort} = 'posted' then j.posted_at end desc nulls last,
       j.discovered_at desc
     limit ${limit} offset ${offset}

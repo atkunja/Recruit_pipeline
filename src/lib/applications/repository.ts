@@ -143,6 +143,8 @@ export async function listApplications(
       c.preference as company_preference,
       s.total      as score,
       s.summary    as score_summary,
+      j.pay_raw    as pay_label,
+      j.pay_monthly_max as pay_monthly_max,
       coalesce(s.strongest_skills, '{}')     as strongest_skills,
       coalesce(s.missing_requirements, '{}') as missing_requirements,
       0            as duplicate_count,

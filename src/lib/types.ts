@@ -458,6 +458,10 @@ export interface JobListItem {
   companyPreference: number;
   score: number | null;
   scoreSummary: string | null;
+  /** Display form, e.g. "$45–65/hr". Null when the posting never says. */
+  payLabel: string | null;
+  /** Monthly equivalent, for sorting across hourly/weekly/annual figures. */
+  payMonthlyMax: number | null;
   strongestSkills: string[];
   missingRequirements: string[];
   applicationId: number | null;

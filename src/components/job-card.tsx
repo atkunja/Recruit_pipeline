@@ -33,6 +33,9 @@ export function JobCard({ job }: { job: JobListItem }) {
 
           <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-faint">
             <span>{job.locationRaw ?? "Location not listed"}</span>
+            {job.payLabel !== null && (
+              <span className="font-medium text-success">{job.payLabel}</span>
+            )}
             {job.isRemote && <Tag tone="muted">Remote</Tag>}
             {job.season !== null && <span>· {job.season}</span>}
             <span>· found {relativeTime(job.discoveredAt)}</span>

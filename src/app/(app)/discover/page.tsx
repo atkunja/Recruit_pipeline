@@ -13,6 +13,7 @@ const PAGE_SIZE = 50;
 
 interface SearchParams {
   minScore?: string;
+  minPay?: string;
   limit?: string;
   company?: string;
   q?: string;
@@ -62,9 +63,13 @@ export default async function DiscoverPage({
     discoveredSince: params.since ? sinceToIso(params.since) : null,
     status,
     includeIgnored: params.ignored === "1",
-    sort: params.sort === "discovered" || params.sort === "posted"
-      ? params.sort
-      : "score",
+    minMonthlyPay: params.minPay ? Number(params.minPay) : null,
+    sort:
+      params.sort === "discovered" ||
+      params.sort === "posted" ||
+      params.sort === "pay"
+        ? params.sort
+        : "score",
     // Fetch one extra to know whether another page exists without a count query.
     limit: shown + 1,
   };

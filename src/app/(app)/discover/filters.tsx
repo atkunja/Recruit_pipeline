@@ -81,6 +81,23 @@ export function DiscoverFiltersBar({
       </label>
 
       <label className="flex items-center gap-1.5 text-faint">
+        <span className="eyebrow">Min pay</span>
+        <select
+          value={params.get("minPay") ?? ""}
+          onChange={(event) => update("minPay", event.target.value)}
+          className={inputClass}
+          title="Monthly equivalent — an hourly rate is converted at 40h/week"
+        >
+          <option value="">Any</option>
+          <option value="4000">$4k/mo+</option>
+          <option value="6000">$6k/mo+</option>
+          <option value="8000">$8k/mo+</option>
+          <option value="10000">$10k/mo+</option>
+          <option value="15000">$15k/mo+</option>
+        </select>
+      </label>
+
+      <label className="flex items-center gap-1.5 text-faint">
         <span className="eyebrow">Found</span>
         <select
           value={params.get("since") ?? ""}
@@ -130,6 +147,7 @@ export function DiscoverFiltersBar({
           className={inputClass}
         >
           <option value="score">Fit score</option>
+          <option value="pay">Pay (highest)</option>
           <option value="discovered">Recently found</option>
           <option value="posted">Recently posted</option>
         </select>
