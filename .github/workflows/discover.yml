@@ -1,9 +1,10 @@
 name: Scheduled discovery
 
-# Vercel's Hobby plan allows two cron jobs, once a day each. Running the
-# schedule from GitHub Actions instead keeps discovery at three times a day
-# on the free tier — the endpoints authenticate with CRON_SECRET either way,
-# so this and vercel.json are interchangeable.
+# Vercel's Hobby plan allows two cron jobs, once a day each — vercel.json uses
+# that allowance for discovery and email sync. This workflow runs the same
+# endpoints more often, and covers follow-up drafting, which does not fit in
+# the two-cron budget. Both paths authenticate with CRON_SECRET, so they are
+# interchangeable; delete whichever you don't want.
 #
 # Required repository secrets (Settings → Secrets and variables → Actions):
 #   APP_URL      https://your-app.vercel.app
@@ -11,25 +12,27 @@ name: Scheduled discovery
 
 on:
   schedule:
-    # 08:00, 13:00 and 18:00 US Eastern (13/18/23 UTC).
+    # Discovery three times a day, 08:00 / 13:00 / 18:00 US Eastern.
     - cron: "0 13,18,23 * * *"
   workflow_dispatch:
     inputs:
-      maxScored:
-        description: "Max jobs to score this run"
+      task:
+        description: "Which job to run"
         required: false
-        default: "40"
+        default: "discover"
+        type: choice
+        options: [discover, sync-email, follow-ups, discover-boards]
 
 jobs:
-  discover:
+  run:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Trigger discovery
+      - name: Trigger
         env:
           APP_URL: ${{ secrets.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          MAX_SCORED: ${{ github.event.inputs.maxScored || '40' }}
+          TASK: ${{ github.event.inputs.task || 'discover' }}
         run: |
           if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "::error::APP_URL and CRON_SECRET repository secrets must be set."
@@ -38,15 +41,33 @@ jobs:
 
           response=$(mktemp)
           status=$(curl -sS -o "$response" -w "%{http_code}" \
-            --max-time 540 \
+            --max-time 300 \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "$APP_URL/api/cron/discover?maxScored=$MAX_SCORED")
+            "$APP_URL/api/cron/$TASK")
 
           echo "HTTP $status"
           cat "$response"
           echo
 
           if [ "$status" != "200" ]; then
-            echo "::error::Discovery failed with HTTP $status"
+            echo "::error::$TASK failed with HTTP $status"
             exit 1
           fi
+
+  # Follow-up drafting only makes sense once outreach has been sent, and it
+  # produces drafts rather than sending anything, so a weekday run is plenty.
+  follow-ups:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Draft follow-ups
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          [ -z "$APP_URL" ] && exit 0
+          curl -sS --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/cron/follow-ups" | head -c 500
+          echo
