@@ -4,12 +4,21 @@ import postgres from "postgres";
 /**
  * Postgres client.
  *
- * Points at Supabase's *session* pooler (port 5432), not the transaction
- * pooler (6543). Transaction mode multiplexes clients onto shared backends, so
- * `SET` state leaks between them and a long-lived client eventually queues
- * queries forever with no error surfaced anywhere — the app just spins. Session
- * mode gives a dedicated backend. `prepare: false` is kept because it is
- * correct under either mode.
+ * Pooling, and which port to use:
+ *
+ *   Transaction pooler (6543) — for the app. It multiplexes many clients onto
+ *     far fewer backends, which is what serverless needs, since every warm
+ *     function instance holds its own pool.
+ *   Session pooler (5432) — for migrations, which need a stable session.
+ *
+ * An earlier version had this backwards, on the theory that transaction mode
+ * caused a hang. It did not: the hang came from a lazy Proxy that rebuilt the
+ * client on every property access and leaked pools until Supabase stopped
+ * granting connections. With that fixed, session mode's 15-client ceiling
+ * became the binding constraint in production instead.
+ *
+ * `prepare: false` is required under transaction pooling and harmless under
+ * session pooling.
  */
 
 type Sql = ReturnType<typeof postgres>;
@@ -58,18 +67,16 @@ function create(): Sql {
       },
     },
 
-    // Pool size.
+    // Pool size, per client instance.
     //
-    // This was briefly 1, to contain a connection leak caused by a lazy Proxy
-    // rebuilding clients (since removed). One connection serializes everything:
-    // ingesting 366 postings at ~5 queries each through a single connection was
-    // the reason a discovery run spent its entire window fetching boards and
-    // never reached scoring.
+    // The ceiling that matters is Supabase's, not ours, and it is shared across
+    // every process: serverless gives each concurrent function instance its own
+    // pool, so `max` is multiplied by however many are warm. At max:10 two
+    // Vercel instances exhausted the session pooler's 15-client limit and 36 of
+    // 44 sources failed with EMAXCONNSESSION.
     //
-    // Session-mode pooling gives each connection a dedicated backend, and
-    // Supabase allows far more than this, so a modest pool is both safe and
-    // dramatically faster.
-    max: 10,
+    // Keep this small and let the transaction pooler do the real multiplexing.
+    max: Number(process.env.DATABASE_POOL_MAX ?? 4),
 
     // Hand the connection back quickly so an idle page view doesn't hold a
     // slot, and recycle periodically so a half-dead socket can't persist.
