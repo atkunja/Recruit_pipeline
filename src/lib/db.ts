@@ -75,8 +75,11 @@ function create(): Sql {
     // Vercel instances exhausted the session pooler's 15-client limit and 36 of
     // 44 sources failed with EMAXCONNSESSION.
     //
-    // Keep this small and let the transaction pooler do the real multiplexing.
-    max: Number(process.env.DATABASE_POOL_MAX ?? 4),
+    // Too small starves instead: several pages fire 6-8 queries at once
+    // (Analytics runs 7, Settings 8), and a pool of 3 made those pages hang
+    // for 30s while simple pages stayed fast. 12 is comfortable for both and
+    // is nowhere near what transaction mode allows.
+    max: Number(process.env.DATABASE_POOL_MAX ?? 12),
 
     // Hand the connection back quickly so an idle page view doesn't hold a
     // slot, and recycle periodically so a half-dead socket can't persist.
