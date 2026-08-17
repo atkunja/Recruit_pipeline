@@ -50,11 +50,20 @@ export default async function DiscoverPage({
       ? null
       : Number(params.minScore);
 
-  const status = APPLICATION_STATUSES.includes(params.status as ApplicationStatus)
-    ? (params.status as ApplicationStatus)
-    : params.status === "none"
+  // Default to jobs you have not acted on.
+  //
+  // Discover is the inbox: once a job has an application row — because you
+  // marked it applied, or prepared it — it belongs to Queue or Applied and
+  // should leave this list. Previously it stayed, so pressing Applied appeared
+  // to do nothing. "Any status" in the filter bar brings them back.
+  const status =
+    params.status === undefined
       ? "none"
-      : null;
+      : APPLICATION_STATUSES.includes(params.status as ApplicationStatus)
+        ? (params.status as ApplicationStatus)
+        : params.status === "any"
+          ? null
+          : "none";
 
   const filters: DiscoverFilters = {
     minScore: Number.isFinite(minScore) ? minScore : null,

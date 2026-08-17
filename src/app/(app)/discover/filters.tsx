@@ -115,12 +115,12 @@ export function DiscoverFiltersBar({
       <label className="flex items-center gap-1.5 text-faint">
         <span className="eyebrow">Status</span>
         <select
-          value={params.get("status") ?? ""}
+          value={params.get("status") ?? "none"}
           onChange={(event) => update("status", event.target.value)}
           className={inputClass}
         >
-          <option value="">Any</option>
           <option value="none">Not started</option>
+          <option value="any">Any status</option>
           {APPLICATION_STATUSES.map((status) => (
             <option key={status} value={status}>
               {STATUS_LABELS[status]}

@@ -54,7 +54,13 @@ export function JobCardActions({
 
   function markApplied() {
     startTransition(async () => {
-      if (await post(`/api/jobs/${jobId}/applied`)) router.refresh();
+      if (await post(`/api/jobs/${jobId}/applied`)) {
+        // Vanish straight away. The row also leaves the feed on refresh, since
+        // Discover now hides anything with an application, but waiting for the
+        // round trip made the button look like it had done nothing.
+        setDismissed(true);
+        router.refresh();
+      }
     });
   }
 
@@ -64,7 +70,8 @@ export function JobCardActions({
     });
   }
 
-  // Hide the row's controls once ignored; the row itself disappears on refresh.
+  // Hide the row's controls once it has been ignored or applied to; the row
+  // itself leaves the feed on the next render.
   if (dismissed) return null;
 
   return (
@@ -90,6 +97,7 @@ export function JobCardActions({
           type="button"
           onClick={markApplied}
           disabled={pending || alreadyApplied}
+          title="Record that you already applied, and remove this from Discover"
           className="rounded-md border border-border px-2 py-1 text-[11px] text-muted transition-colors hover:border-border-strong hover:text-text disabled:opacity-40"
         >
           Applied
